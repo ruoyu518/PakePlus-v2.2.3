@@ -1,11 +1,489 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        Hello World
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>雅虹全景播放器 | 沉浸式体验</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+        html, body { width: 100%; height: 100%; overflow: hidden; touch-action: manipulation; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a12; color: #fff; overflow: hidden; height: 100vh; }
+
+        /* 首页 - 启动页 */
+        #home-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 70%); transition: opacity 1.5s ease, transform 1.5s ease; }
+        #home-page.fade-out { opacity: 0; transform: scale(1.1); pointer-events: none; }
+        .portal-container { position: relative; width: 85vmin; height: 85vmin; max-width: 500px; max-height: 500px; display: flex; justify-content: center; align-items: center; }
+        .artistic-arcs { position: absolute; width: 100%; height: 100%; border-radius: 50%; }
+        .arc { position: absolute; border-radius: 50%; border: 2px solid transparent; border-top-color: currentColor; animation: spin 20s linear infinite; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .arc:nth-child(1) { width: 80%; height: 80%; color: #ff6b6b; animation-duration: 25s; border-width: 3px; }
+        .arc:nth-child(2) { width: 90%; height: 90%; color: #4ecdc4; animation-delay: -2s; animation-duration: 30s; animation-direction: reverse; border-width: 2px;}
+        .arc:nth-child(3) { width: 70%; height: 70%; color: #ffd166; animation-delay: -4s; animation-duration: 20s; border-width: 3px;}
+        .arc:nth-child(4) { width: 95%; height: 95%; color: #9d4edd; animation-delay: -6s; animation-duration: 35s; border-width: 2px;}
+        .arc:nth-child(5) { width: 65%; height: 65%; color: #06d6a0; animation-delay: -8s; animation-duration: 22s; border-width: 3px;}
+        .dot { position: absolute; width: 3vmin; height: 3vmin; max-width: 15px; max-height: 15px; border-radius: 50%; background-color: currentColor; filter: blur(0.5px); animation: float 5s ease-in-out infinite; }
+        .dot:nth-child(6) { top: 10%; left: 50%; color: #ff6b6b; transform: translateX(-50%); animation-delay: 0s;}
+        .dot:nth-child(7) { top: 50%; right: 10%; color: #4ecdc4; transform: translateY(-50%); animation-delay: 1s;}
+        .dot:nth-child(8) { bottom: 20%; left: 15%; color: #ffd166; animation-delay: 2s;}
+        .dot:nth-child(9) { top: 30%; left: 15%; color: #9d4edd; animation-delay: 3s;}
+        .dot:nth-child(10) { bottom: 40%; right: 20%; color: #06d6a0; animation-delay: 4s;}
+        .dot:nth-child(11) { top: 15%; right: 25%; color: #ff6b6b; animation-delay: 5s;}
+        .dot:nth-child(12) { bottom: 15%; right: 40%; color: #4ecdc4; animation-delay: 6s;}
+        .portal-center { position: absolute; width: 35vmin; height: 35vmin; max-width: 180px; max-height: 180px; min-width: 120px; min-height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.5s ease; z-index: 10; box-shadow: 0 0 30px rgba(157, 78, 221, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1); top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .portal-center:active { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 50px rgba(157, 78, 221, 0.6), inset 0 0 30px rgba(255, 255, 255, 0.2); }
+        .portal-text { font-size: 10vmin; font-weight: 900; background: linear-gradient(45deg, #9d4edd, #4ecdc4, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 2px; text-align: center; line-height: 1; }
+        .hint-text { position: absolute; bottom: 20vh; font-size: 1rem; color: rgba(255, 255, 255, 0.7); text-align: center; width: 100%; padding: 0 20px; }
+        .skip-btn { position: absolute; bottom: 30px; right: 20px; padding: 12px 24px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 30px; color: rgba(255, 255, 255, 0.7); font-size: 1rem; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(5px); }
+        .skip-btn:active { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+        /* 播放器页 */
+        #player-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1s ease; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 100%); display: none; }
+        #player-page.active { opacity: 1; display: block; }
+        .artistic-player { position: relative; width: 100%; height: 100%; }
+        .player-header { position: absolute; top: env(safe-area-inset-top, 0); left: 0; width: 100%; padding: 15px 10px; display: flex; justify-content: center; align-items: center; z-index: 50; background: transparent; }
+        .player-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .control-btn { padding: 10px 18px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; backdrop-filter: blur(10px); white-space: nowrap; }
+        .control-btn:active { background: rgba(255, 255, 255, 0.2); transform: scale(0.98); }
+        .player-footer { position: absolute; bottom: max(20px, env(safe-area-inset-bottom, 20px)); left: 0; width: 100%; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; z-index: 50; background: transparent; gap: 15px; }
+        .playback-controls { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%; flex-wrap: wrap; }
+        .time-display { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); min-width: 100px; text-align: center; }
+        .progress-bar { width: 85%; max-width: 400px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: relative; cursor: pointer; margin: 5px 0; }
+        .progress-fill { position: absolute; height: 100%; width: 0%; background: rgba(255, 255, 255, 0.8); border-radius: 3px; }
+        .volume-control-container { display: flex; align-items: center; gap: 8px; }
+        .volume-icon-btn { background: none; border: none; color: rgba(255, 255, 255, 0.9); cursor: pointer; font-size: 1.2rem; padding: 8px; display: flex; align-items: center; justify-content: center; }
+        .volume-slider-container { width: 70px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: relative; cursor: pointer; }
+        .volume-slider-fill { position: absolute; height: 100%; width: 70%; background: rgba(255, 255, 255, 0.8); border-radius: 3px; pointer-events: none; }
+        .volume-slider-handle { position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; left: 70%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        .back-btn { position: absolute; top: max(20px, env(safe-area-inset-top, 20px)); left: 20px; padding: 10px 18px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; z-index: 60; backdrop-filter: blur(10px); font-size: 0.9rem; }
+        .back-btn:active { background: rgba(255, 255, 255, 0.2); transform: translateX(-3px); }
+        #panorama-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; touch-action: pan-x pan-y pinch-zoom; }
+        .artistic-decoration { position: absolute; z-index: 10; pointer-events: none; }
+        .decoration-1 { top: 20%; right: 5%; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(157, 78, 221, 0.2) 0%, transparent 70%); filter: blur(20px); }
+        .decoration-2 { bottom: 20%; left: 5%; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle, rgba(78, 205, 196, 0.2) 0%, transparent 70%); filter: blur(20px); }
+
+        /* 上传界面 */
+        .upload-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 18, 0.95); display: flex; justify-content: center; align-items: center; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(10px); padding: 20px; }
+        .upload-overlay.active { opacity: 1; pointer-events: all; }
+        .upload-content { background: rgba(26, 26, 46, 0.95); border-radius: 20px; padding: 30px; width: 100%; max-width: 500px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5); text-align: center; }
+        .upload-title { font-size: 1.5rem; margin-bottom: 15px; background: linear-gradient(45deg, #9d4edd, #4ecdc4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .upload-options { display: flex; gap: 15px; justify-content: center; margin: 25px 0; flex-direction: column; align-items: center; }
+        .upload-option { display: flex; flex-direction: column; align-items: center; padding: 25px 20px; border-radius: 15px; background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease; width: 100%; max-width: 200px; }
+        .upload-option:active { background: rgba(255, 255, 255, 0.1); border-color: #9d4edd; transform: scale(0.98); }
+        .upload-option i { font-size: 2.5rem; margin-bottom: 10px; color: #9d4edd; }
+        .upload-option span { font-size: 1rem; color: rgba(255, 255, 255, 0.9); }
+        .close-upload { margin-top: 20px; padding: 12px 30px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; font-size: 1rem; }
+        .close-upload:active { background: rgba(255, 255, 255, 0.2); }
+        #file-input { display: none; }
+        .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 18, 0.9); display: flex; justify-content: center; align-items: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(5px); }
+        .loading-overlay.active { opacity: 1; pointer-events: all; }
+        .loading-spinner { width: 60px; height: 60px; border: 4px solid rgba(255, 255, 255, 0.1); border-radius: 50%; border-top-color: #9d4edd; animation: spin 1s linear infinite; }
+        .loading-text { margin-top: 20px; color: rgba(255, 255, 255, 0.8); font-size: 1rem; }
+        .status-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); padding: 20px 30px; border-radius: 15px; text-align: center; z-index: 101; display: none; }
+        .status-message.active { display: block; }
+
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }
+        .pulse { animation: pulse 3s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        .float { animation: float 5s ease-in-out infinite; }
+
+        @media (min-width: 768px) { .player-footer { flex-direction: row; justify-content: center; } .progress-bar { width: 40%; margin: 0 20px; } .upload-options { flex-direction: row; } .upload-option { max-width: 180px; } }
+        @media (max-width: 480px) { .portal-text { font-size: 15vw; } .control-btn { padding: 8px 16px; font-size: 0.85rem; } .time-display { font-size: 0.8rem; min-width: 80px; } .progress-bar { width: 95%; } .volume-slider-container { width: 50px; } }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div id="home-page">
+        <div class="portal-container">
+            <div class="artistic-arcs">
+                <div class="arc"></div><div class="arc"></div><div class="arc"></div><div class="arc"></div><div class="arc"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+            <div class="portal-center pulse" id="enter-portal">
+                <div class="portal-text">VR</div>
+            </div>
+        </div>
+        <div class="hint-text">进入雅虹全景播放器</div>
+        <div class="skip-btn" id="skip-btn">跳过 ></div>
+    </div>
+
+    <div id="player-page">
+        <div class="back-btn" id="back-btn">&lt; 返回</div>
+        <div class="artistic-decoration decoration-1"></div>
+        <div class="artistic-decoration decoration-2"></div>
+        <!-- 状态消息容器 -->
+        <div class="status-message" id="status-message"></div>
+        <div class="loading-overlay" id="loading-overlay">
+            <div style="text-align: center;">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" id="loading-text">正在加载...</div>
+            </div>
+        </div>
+        <div class="artistic-player">
+            <div class="player-header">
+                <div class="player-controls">
+                    <div class="control-btn" id="upload-btn">上传文件</div>
+                    <div class="control-btn" id="gyro-btn">陀螺仪 关</div>
+                </div>
+            </div>
+            <div id="panorama-container"></div>
+            <div class="player-footer">
+                <div class="playback-controls">
+                    <div class="control-btn" id="play-btn"><i class="fas fa-play"></i> 播放</div>
+                    <div class="time-display">00:00 / 00:00</div>
+                    <div class="volume-control-container">
+                        <button class="volume-icon-btn" id="volume-toggle-btn"><i class="fas fa-volume-up"></i></button>
+                        <div class="volume-slider-container" id="volume-slider-container">
+                            <div class="volume-slider-fill" id="volume-slider-fill"></div>
+                            <div class="volume-slider-handle" id="volume-slider-handle"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-bar" id="progress-bar-container">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="player-controls">
+                    <div class="control-btn" id="fullscreen-btn">全屏</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="upload-overlay" id="upload-overlay">
+        <div class="upload-content">
+            <h2 class="upload-title">上传文件</h2>
+            <p style="color: rgba(255,255,255,0.7); margin-bottom: 20px;">请选择视频或图片文件</p>
+            <div class="upload-options">
+                <div class="upload-option" id="upload-video-btn"><i class="fas fa-video"></i><span>视频文件</span></div>
+                <div class="upload-option" id="upload-image-btn"><i class="fas fa-image"></i><span>图片文件</span></div>
+            </div>
+            <p style="margin: 20px 0; color: rgba(255, 255, 255, 0.5); font-size: 0.9rem;">建议使用H.264编码的MP4视频</p>
+            <input type="file" id="file-input" accept="video/*,image/*">
+            <button class="close-upload" id="close-upload">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        // DOM元素初始化
+        const homePage = document.getElementById('home-page');
+        const playerPage = document.getElementById('player-page');
+        const enterPortal = document.getElementById('enter-portal');
+        const skipBtn = document.getElementById('skip-btn');
+        const backBtn = document.getElementById('back-btn');
+        const panoramaContainer = document.getElementById('panorama-container');
+        const uploadBtn = document.getElementById('upload-btn');
+        const uploadOverlay = document.getElementById('upload-overlay');
+        const closeUpload = document.getElementById('close-upload');
+        const uploadVideoBtn = document.getElementById('upload-video-btn');
+        const uploadImageBtn = document.getElementById('upload-image-btn');
+        const fileInput = document.getElementById('file-input');
+        const playBtn = document.getElementById('play-btn');
+        const gyroBtn = document.getElementById('gyro-btn');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const progressBarContainer = document.getElementById('progress-bar-container');
+        const progressFill = document.getElementById('progress-fill');
+        const timeDisplay = document.querySelector('.time-display');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const statusMessage = document.getElementById('status-message');
+        const volumeToggleBtn = document.getElementById('volume-toggle-btn');
+        const volumeSliderContainer = document.getElementById('volume-slider-container');
+        const volumeSliderFill = document.getElementById('volume-slider-fill');
+        const volumeSliderHandle = document.getElementById('volume-slider-handle');
+
+        // Three.js场景变量
+        let scene, camera, renderer, sphere, video, videoTexture, imageTexture;
+        let isPlaying = false;
+        let isGyroEnabled = false;
+        let isUserInteracting = false;
+        let lon = 0, lat = 0;
+        let onPointerDownLon = 0, onPointerDownLat = 0;
+        let onPointerDownPointerX = 0, onPointerDownPointerY = 0;
+        let phi = 0, theta = 0;
+        let currentMediaType = null;
+        let currentMediaSrc = null;
+        let isMuted = false;
+        let currentVolume = 0.7;
+        let autoRotationSpeed = 0.05;
+        let initialFov = 75;
+        let minFov = 10;
+        let maxFov = 110;
+        let pinchZoomDistance = 0;
+        let isPinchZooming = false;
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            initArcAnimations();
+            enterPortal.addEventListener('click', enterPlayer);
+            skipBtn.addEventListener('click', enterPlayer);
+            backBtn.addEventListener('click', exitPlayer);
+            uploadBtn.addEventListener('click', () => uploadOverlay.classList.add('active'));
+            closeUpload.addEventListener('click', () => uploadOverlay.classList.remove('active'));
+            uploadVideoBtn.addEventListener('click', () => { fileInput.accept = "video/*"; fileInput.click(); });
+            uploadImageBtn.addEventListener('click', () => { fileInput.accept = "image/*"; fileInput.click(); });
+            fileInput.addEventListener('change', (e) => { if (e.target.files[0]) { loadMediaFile(e.target.files[0]); uploadOverlay.classList.remove('active'); } });
+            playBtn.addEventListener('click', togglePlay);
+            gyroBtn.addEventListener('click', toggleGyro);
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            progressBarContainer.addEventListener('click', (e) => { if (video && currentMediaType === 'video') { const rect = progressBarContainer.getBoundingClientRect(); const percent = (e.clientX - rect.left) / rect.width; video.currentTime = video.duration * percent; } });
+            initVolumeControl();
+            initPanoramaViewer();
+            setupEventListeners();
+        });
+
+        // 音量控制初始化
+        function initVolumeControl() {
+            updateVolumeUI(currentVolume);
+            volumeSliderContainer.addEventListener('click', (e) => {
+                if (!video || currentMediaType !== 'video') return;
+                const rect = volumeSliderContainer.getBoundingClientRect();
+                let clickX = e.clientX - rect.left;
+                clickX = Math.max(0, Math.min(rect.width, clickX));
+                setVolume(clickX / rect.width);
+            });
+            let isDraggingVolume = false;
+            const startDrag = (clientX) => {
+                if (!video || currentMediaType !== 'video') return;
+                isDraggingVolume = true;
+                const onDrag = (moveX) => {
+                    if (!isDraggingVolume) return;
+                    const rect = volumeSliderContainer.getBoundingClientRect();
+                    let dragX = moveX - rect.left;
+                    dragX = Math.max(0, Math.min(rect.width, dragX));
+                    setVolume(dragX / rect.width);
+                };
+                const stopDrag = () => { isDraggingVolume = false; document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('mouseup', stopDrag); document.removeEventListener('touchend', stopDrag); };
+                const onMouseMove = (e) => onDrag(e.clientX);
+                const onTouchMove = (e) => { if(e.touches[0]) onDrag(e.touches[0].clientX); };
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('touchmove', onTouchMove, { passive: false });
+                document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('touchend', stopDrag);
+            };
+            volumeSliderContainer.addEventListener('mousedown', (e) => startDrag(e.clientX));
+            volumeSliderContainer.addEventListener('touchstart', (e) => { e.preventDefault(); if(e.touches[0]) startDrag(e.touches[0].clientX); }, { passive: false });
+            volumeToggleBtn.addEventListener('click', () => { if (!video || currentMediaType !== 'video') return; isMuted = !isMuted; updateVolumeToggleButton(); video.muted = isMuted; });
+            updateVolumeToggleButton();
+        }
+        function setVolume(volume) { currentVolume = Math.max(0, Math.min(1, volume)); if (video) { video.volume = currentVolume; video.muted = false; isMuted = false; } updateVolumeUI(currentVolume); updateVolumeToggleButton(); }
+        function updateVolumeUI(volume) { const percentage = volume * 100; volumeSliderFill.style.width = `${percentage}%`; volumeSliderHandle.style.left = `${percentage}%`; }
+        function updateVolumeToggleButton() { const icon = volumeToggleBtn.querySelector('i'); if (isMuted || currentVolume === 0) { icon.className = 'fas fa-volume-mute'; } else if (currentVolume > 0.5) { icon.className = 'fas fa-volume-up'; } else if (currentVolume > 0) { icon.className = 'fas fa-volume-down'; } else { icon.className = 'fas fa-volume-off'; } }
+
+        // 初始化全景查看器
+        function initPanoramaViewer() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(initialFov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0.1);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 1);
+            panoramaContainer.appendChild(renderer.domElement);
+            const geometry = new THREE.SphereGeometry(500, 60, 40);
+            geometry.scale(-1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x666666, wireframe: true, transparent: true, opacity: 0.3 });
+            sphere = new THREE.Mesh(geometry, material);
+            scene.add(sphere);
+            const pointLight1 = new THREE.PointLight(0x9d4edd, 0.8, 300); pointLight1.position.set(100, 100, 100); scene.add(pointLight1);
+            const pointLight2 = new THREE.PointLight(0x4ecdc4, 0.6, 300); pointLight2.position.set(-100, -100, -100); scene.add(pointLight2);
+            const ambientLight = new THREE.AmbientLight(0x333344, 0.3); scene.add(ambientLight);
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // 加载媒体文件
+        function loadMediaFile(file) {
+            if (!file) return;
+            stopCurrentMedia();
+            const mediaURL = URL.createObjectURL(file);
+            currentMediaSrc = mediaURL;
+            if (file.type.startsWith('video/')) {
+                currentMediaType = 'video';
+                loadVideo(mediaURL);
+            } else if (file.type.startsWith('image/')) {
+                currentMediaType = 'image';
+                loadImage(mediaURL);
+            } else {
+                showStatus('不支持的文件类型，请上传视频或图片', 'error');
+                return;
+            }
+        }
+
+        // ************ 加载视频文件核心逻辑 ************
+        function loadVideo(src) {
+            loadingText.textContent = '正在加载视频...';
+            loadingOverlay.classList.add('active');
+            if (videoTexture) { videoTexture.dispose(); videoTexture = null; }
+            if (video) { video.pause(); video.src = ''; video.load(); video = null; }
+            video = document.createElement('video');
+            // 核心优化1：设置跨域属性，允许从Blob URL或网络源加载视频
+            video.crossOrigin = 'anonymous';
+            video.loop = true;
+            video.muted = false;
+            video.volume = currentVolume;
+            video.playsInline = true;
+            video.setAttribute('playsinline', '');
+            video.preload = 'metadata';
+
+            video.addEventListener('loadedmetadata', function() {
+                loadingText.textContent = '正在准备视频纹理...';
+                // 核心优化2：监听canplay事件，确保视频纹理可被渲染
+                video.addEventListener('canplay', function onCanPlay() {
+                    video.removeEventListener('canplay', onCanPlay);
+                    try {
+                        if (videoTexture) videoTexture.dispose();
+                        // 视频纹理
+                        videoTexture = new THREE.VideoTexture(video);
+                        videoTexture.minFilter = THREE.LinearFilter;
+                        videoTexture.magFilter = THREE.LinearFilter;
+                        videoTexture.format = THREE.RGBAFormat;
+                        // 应用到球体贴图
+                        sphere.material.map = videoTexture;
+                        sphere.material.color.set(0xffffff);
+                        sphere.material.wireframe = false;
+                        sphere.material.transparent = false;
+                        sphere.material.opacity = 1;
+                        sphere.material.needsUpdate = true;
+                        // 启用播放控制
+                        playBtn.style.opacity = '1';
+                        playBtn.style.pointerEvents = 'auto';
+                        updateTimeDisplay(0, video.duration);
+                        isPlaying = false;
+                        playBtn.innerHTML = '<i class="fas fa-play"></i> 播放';
+                        // 为防止自动播放被浏览器阻止，先暂停
+                        video.pause();
+                        updateVolumeToggleButton();
+                        loadingOverlay.classList.remove('active');
+                        showStatus('视频加载成功，可以播放了', 'success');
+                    } catch (textureError) {
+                        console.error('视频纹理创建失败:', textureError);
+                        loadingOverlay.classList.remove('active');
+                        showStatus('视频纹理创建失败，视频编码可能不支持', 'error');
+                    }
+                }, { once: true });
+                // 尝试自动播放以解锁音频，但立即暂停
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => { video.pause(); }).catch(e => { /* 忽略自动播放失败错误 */ });
+                }
+            });
+
+            video.addEventListener('timeupdate', function() {
+                if (video.duration) {
+                    const progress = (video.currentTime / video.duration) * 100;
+                    progressFill.style.width = `${progress}%`;
+                    updateTimeDisplay(video.currentTime, video.duration);
+                }
+            });
+
+            video.addEventListener('ended', function() { isPlaying = false; playBtn.innerHTML = '<i class="fas fa-play"></i> 播放'; });
+
+            video.addEventListener('error', function(e) {
+                console.error('视频加载错误:', video.error);
+                loadingOverlay.classList.remove('active');
+                let msg = '视频加载失败。';
+                if (video.error && video.error.code === 4) {
+                    msg += ' 不支持此格式或编码。';
+                } else {
+                    msg += ' 请确保是H.264 MP4编码的兼容视频。';
+                }
+                showStatus(msg, 'error');
+            });
+
+            // 设置视频源
+            video.src = src;
+            video.load();
+        }
+
+        function loadImage(src) {
+            playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none';
+            progressFill.style.width = '0%'; updateTimeDisplay(0, 0);
+            if (imageTexture) imageTexture.dispose();
+            const textureLoader = new THREE.TextureLoader();
+            loadingText.textContent = '正在加载图片...';
+            loadingOverlay.classList.add('active');
+            textureLoader.load( src,
+                function(texture) {
+                    imageTexture = texture;
+                    imageTexture.minFilter = THREE.LinearFilter;
+                    imageTexture.magFilter = THREE.LinearFilter;
+                    sphere.material.map = imageTexture;
+                    sphere.material.color.set(0xffffff);
+                    sphere.material.wireframe = false;
+                    sphere.material.transparent = false;
+                    sphere.material.opacity = 1;
+                    sphere.material.needsUpdate = true;
+                    loadingOverlay.classList.remove('active');
+                    showStatus('图片文件加载成功', 'success');
+                },
+                undefined,
+                function(error) {
+                    console.error('图片加载错误:', error);
+                    loadingOverlay.classList.remove('active');
+                    showStatus('图片加载失败，请重试', 'error');
+                }
+            );
+        }
+
+        function stopCurrentMedia() {
+            if (video) { video.pause(); isPlaying = false; playBtn.innerHTML = '<i class="fas fa-play"></i> 播放'; }
+        }
+
+        function togglePlay() {
+            if (video && currentMediaType === 'video') {
+                if (isPlaying) {
+                    video.pause();
+                    playBtn.innerHTML = '<i class="fas fa-play"></i> 播放';
+                } else {
+                    video.play().then(() => {
+                        playBtn.innerHTML = '<i class="fas fa-pause"></i> 暂停';
+                        showStatus('', 'success'); // 清空成功消息
+                    }).catch(e => {
+                        console.log("播放失败:", e);
+                        showStatus('播放失败，请检查浏览器设置', 'error');
+                    });
+                }
+                isPlaying = !isPlaying;
+            }
+        }
+
+        function showStatus(text, type) {
+            statusMessage.textContent = text;
+            statusMessage.className = 'status-message';
+            if (text) {
+                statusMessage.classList.add('active');
+                statusMessage.style.color = type === 'error' ? '#ff6b6b' : '#06d6a0';
+                setTimeout(() => { statusMessage.classList.remove('active'); }, 3000);
+            }
+        }
+
+        // 其他功能函数 (initArcAnimations, enterPlayer, exitPlayer, setupEventListeners, 以及陀螺仪、全屏、鼠标控制等相关函数)
+        // 以下为原始文件中已存在的功能函数，为保持完整性保留，但已修正内部的中文注释和字符串
+        // 注意：为节省空间，这里不重复修正所有注释，但关键用户界面字符串已在上述代码中修正。
+        // 核心改动：将所有用户可见的中文乱码文本替换为正确中文，内部注释和逻辑保持不变。
+        function initArcAnimations() { document.querySelectorAll('.arc').forEach(arc => { arc.style.animationDelay = `${Math.random() * -10}s`; arc.style.animationDuration = `${20 + Math.random() * 20}s`; if (Math.random() > 0.5) arc.style.animationDirection = 'reverse'; }); document.querySelectorAll('.dot').forEach(dot => { dot.style.animationDelay = `${Math.random() * 5}s`; }); }
+        function enterPlayer() { homePage.classList.add('fade-out'); setTimeout(() => { homePage.style.display = 'none'; playerPage.classList.add('active'); animatePanorama(); }, 1000); }
+        function exitPlayer() { stopCurrentMedia(); currentMediaType = null; if (videoTexture) { sphere.material.map = null; sphere.material.color.set(0x666666); sphere.material.wireframe = true; sphere.material.transparent = true; sphere.material.opacity = 0.3; sphere.material.needsUpdate = true; videoTexture.dispose(); videoTexture = null; } if (imageTexture) { sphere.material.map = null; sphere.material.color.set(0x666666); sphere.material.wireframe = true; sphere.material.transparent = true; sphere.material.opacity = 0.3; sphere.material.needsUpdate = true; imageTexture.dispose(); imageTexture = null; } playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none'; progressFill.style.width = '0%'; updateTimeDisplay(0, 0); playerPage.classList.remove('active'); setTimeout(() => { homePage.style.display = 'flex'; homePage.classList.remove('fade-out'); }, 500); }
+        function setupEventListeners() { panoramaContainer.style.touchAction = 'none'; panoramaContainer.addEventListener('pointerdown', onPointerDown); document.addEventListener('pointermove', onPointerMove); document.addEventListener('pointerup', onPointerUp); panoramaContainer.addEventListener('wheel', onDocumentMouseWheel, { passive: false }); panoramaContainer.addEventListener('touchstart', onTouchStart, { passive: false }); panoramaContainer.addEventListener('touchmove', onTouchMove, { passive: false }); panoramaContainer.addEventListener('touchend', onTouchEnd); document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && playerPage.classList.contains('active')) exitPlayer(); if (e.key === ' ' && playerPage.classList.contains('active') && currentMediaType === 'video') { e.preventDefault(); if (playBtn && !playBtn.disabled) playBtn.click(); } if (e.key === 'f' || e.key === 'F') toggleFullscreen(); if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); } if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomOut(); } if (e.key === '0') { e.preventDefault(); resetZoom(); } if (e.key === 'ArrowUp' && video && currentMediaType === 'video') { e.preventDefault(); setVolume(Math.min(1, currentVolume + 0.1)); } if (e.key === 'ArrowDown' && video && currentMediaType === 'video') { e.preventDefault(); setVolume(Math.max(0, currentVolume - 0.1)); } if (e.key === 'm' || e.key === 'M') { e.preventDefault(); if (video && currentMediaType === 'video') volumeToggleBtn.click(); } }); }
+        function onPointerDown(e) { if (e.isPrimary === false || e.button !== 0) return; isUserInteracting = true; onPointerDownPointerX = e.clientX; onPointerDownPointerY = e.clientY; onPointerDownLon = lon; onPointerDownLat = lat; }
+        function onPointerMove(e) { if (e.isPrimary === false || !isUserInteracting || isGyroEnabled) return; const dx = e.clientX - onPointerDownPointerX; const dy = e.clientY - onPointerDownPointerY; const sensitivity = 0.1; const fovSensetivity = camera.fov / 60; lon = (onPointerDownLon - dx * sensitivity * fovSensetivity); lat = (onPointerDownLat + dy * sensitivity * fovSensetivity); }
+        function onPointerUp() { isUserInteracting = false; }
+        function onDocumentMouseWheel(e) { e.preventDefault(); e.deltaY < 0 ? zoomIn() : zoomOut(); }
+        function onTouchStart(e) { if (e.touches.length === 2) { isPinchZooming = true; isUserInteracting = false; const dx = e.touches[0].pageX - e.touches[1].pageX; const dy = e.touches[0].pageY - e.touches[1].pageY; pinchZoomDistance = Math.sqrt(dx * dx + dy * dy); initialFov = camera.fov; } else if (e.touches.length === 1) { isUserInteracting = true; onPointerDownPointerX = e.touches[0].clientX; onPointerDownPointerY = e.touches[0].clientY; onPointerDownLon = lon; onPointerDownLat = lat; } }
+        function onTouchMove(e) { if (e.touches.length === 2 && isPinchZooming) { e.preventDefault(); const dx = e.touches[0].pageX - e.touches[1].pageX; const dy = e.touches[0].pageY - e.touches[1].pageY; const currentDistance = Math.sqrt(dx * dx + dy * dy); if (pinchZoomDistance > 0) { const scale = pinchZoomDistance / currentDistance; let newFov = initialFov * scale; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); } } else if (e.touches.length === 1 && isUserInteracting && !isGyroEnabled) { const dx = e.touches[0].clientX - onPointerDownPointerX; const dy = e.touches[0].clientY - onPointerDownPointerY; const sensitivity = 0.25; const fovSensetivity = camera.fov / 60; lon = (onPointerDownLon - dx * sensitivity * fovSensetivity); lat = (onPointerDownLat + dy * sensitivity * fovSensetivity); } }
+        function onTouchEnd(e) { if (e.touches.length < 2) isPinchZooming = false; if (e.touches.length === 0) isUserInteracting = false; }
+        function zoomIn() { let newFov = camera.fov - 5; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); }
+        function zoomOut() { let newFov = camera.fov + 5; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); }
+        function resetZoom() { camera.fov = initialFov; camera.updateProjectionMatrix(); }
+        function updateCamera() { if (isGyroEnabled) return; lat = Math.max(-85, Math.min(85, lat)); phi = THREE.MathUtils.degToRad(90 - lat); theta = THREE.MathUtils.degToRad(lon); const x = 500 * Math.sin(phi) * Math.cos(theta); const y = 500 * Math.cos(phi); const z = 500 * Math.sin(phi) * Math.sin(theta); camera.lookAt(x, y, z); }
+        function toggleGyro() { if (!isGyroEnabled) { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') { DeviceOrientationEvent.requestPermission().then(response => { if (response === 'granted') enableGyro(); else alert('设备方向权限被拒绝，无法启用陀螺仪'); }).catch(error => console.error('请求陀螺仪权限:', error)); } else { enableGyro(); } } else { disableGyro(); } }
+        function enableGyro() { isGyroEnabled = true; gyroBtn.textContent = '陀螺仪 开'; gyroBtn.style.background = 'rgba(157, 78, 221, 0.2)'; gyroBtn.style.borderColor = '#9d4edd'; window.addEventListener('deviceorientation', onDeviceOrientation); }
+        function disableGyro() { isGyroEnabled = false; gyroBtn.textContent = '陀螺仪 关'; gyroBtn.style.background = ''; gyroBtn.style.borderColor = ''; window.removeEventListener('deviceorientation', onDeviceOrientation); }
+        function onDeviceOrientation(e) { if (!isGyroEnabled) return; const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; const beta = e.beta ? THREE.MathUtils.degToRad(e.beta) : 0; const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; camera.rotation.x = -beta; camera.rotation.y = -alpha; camera.rotation.z = gamma; }
+        function toggleFullscreen() { if (!document.fullscreenElement) { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.mozRequestFullScreen) document.documentElement.mozRequestFullScreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); else if (document.documentElement.msRequestFullscreen) document.documentElement.msRequestfullscreen(); } else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.mozCancelFullScreen) document.mozCancelFullScreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); else if (document.msExitFullscreen) document.msExitFullscreen(); } }
+        function updateTimeDisplay(current, duration) { const formatTime = (s) => { const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`; }; timeDisplay.textContent = duration > 0 ? `${formatTime(current)} / ${formatTime(duration)}` : '00:00 / 00:00'; }
+        function animatePanorama() { requestAnimationFrame(animatePanorama); if (!isGyroEnabled) updateCamera(); if (!currentMediaType && !isGyroEnabled && !isUserInteracting) { lon += autoRotationSpeed; lat = Math.max(-85, Math.min(85, lat)); phi = THREE.MathUtils.degToRad(90 - lat); theta = THREE.MathUtils.degToRad(lon); const x = 500 * Math.sin(phi) * Math.cos(theta); const y = 500 * Math.cos(phi); const z = 500 * Math.sin(phi) * Math.sin(theta); camera.lookAt(x, y, z); } if (video && currentMediaType === 'video' && videoTexture) { videoTexture.needsUpdate = true; } renderer.render(scene, camera); }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        document.addEventListener('fullscreenchange', () => { fullscreenBtn.textContent = document.fullscreenElement ? '退出全屏' : '全屏'; });
+    </script>
+</body>
 </html>
