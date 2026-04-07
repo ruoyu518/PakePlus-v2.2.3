@@ -1,489 +1,508 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>雅虹全景播放器 | 沉浸式体验</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
-        html, body { width: 100%; height: 100%; overflow: hidden; touch-action: manipulation; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a12; color: #fff; overflow: hidden; height: 100vh; }
-
-        /* 首页 - 启动页 */
-        #home-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 70%); transition: opacity 1.5s ease, transform 1.5s ease; }
-        #home-page.fade-out { opacity: 0; transform: scale(1.1); pointer-events: none; }
-        .portal-container { position: relative; width: 85vmin; height: 85vmin; max-width: 500px; max-height: 500px; display: flex; justify-content: center; align-items: center; }
-        .artistic-arcs { position: absolute; width: 100%; height: 100%; border-radius: 50%; }
-        .arc { position: absolute; border-radius: 50%; border: 2px solid transparent; border-top-color: currentColor; animation: spin 20s linear infinite; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .arc:nth-child(1) { width: 80%; height: 80%; color: #ff6b6b; animation-duration: 25s; border-width: 3px; }
-        .arc:nth-child(2) { width: 90%; height: 90%; color: #4ecdc4; animation-delay: -2s; animation-duration: 30s; animation-direction: reverse; border-width: 2px;}
-        .arc:nth-child(3) { width: 70%; height: 70%; color: #ffd166; animation-delay: -4s; animation-duration: 20s; border-width: 3px;}
-        .arc:nth-child(4) { width: 95%; height: 95%; color: #9d4edd; animation-delay: -6s; animation-duration: 35s; border-width: 2px;}
-        .arc:nth-child(5) { width: 65%; height: 65%; color: #06d6a0; animation-delay: -8s; animation-duration: 22s; border-width: 3px;}
-        .dot { position: absolute; width: 3vmin; height: 3vmin; max-width: 15px; max-height: 15px; border-radius: 50%; background-color: currentColor; filter: blur(0.5px); animation: float 5s ease-in-out infinite; }
-        .dot:nth-child(6) { top: 10%; left: 50%; color: #ff6b6b; transform: translateX(-50%); animation-delay: 0s;}
-        .dot:nth-child(7) { top: 50%; right: 10%; color: #4ecdc4; transform: translateY(-50%); animation-delay: 1s;}
-        .dot:nth-child(8) { bottom: 20%; left: 15%; color: #ffd166; animation-delay: 2s;}
-        .dot:nth-child(9) { top: 30%; left: 15%; color: #9d4edd; animation-delay: 3s;}
-        .dot:nth-child(10) { bottom: 40%; right: 20%; color: #06d6a0; animation-delay: 4s;}
-        .dot:nth-child(11) { top: 15%; right: 25%; color: #ff6b6b; animation-delay: 5s;}
-        .dot:nth-child(12) { bottom: 15%; right: 40%; color: #4ecdc4; animation-delay: 6s;}
-        .portal-center { position: absolute; width: 35vmin; height: 35vmin; max-width: 180px; max-height: 180px; min-width: 120px; min-height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.5s ease; z-index: 10; box-shadow: 0 0 30px rgba(157, 78, 221, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1); top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        .portal-center:active { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 50px rgba(157, 78, 221, 0.6), inset 0 0 30px rgba(255, 255, 255, 0.2); }
-        .portal-text { font-size: 10vmin; font-weight: 900; background: linear-gradient(45deg, #9d4edd, #4ecdc4, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 2px; text-align: center; line-height: 1; }
-        .hint-text { position: absolute; bottom: 20vh; font-size: 1rem; color: rgba(255, 255, 255, 0.7); text-align: center; width: 100%; padding: 0 20px; }
-        .skip-btn { position: absolute; bottom: 30px; right: 20px; padding: 12px 24px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 30px; color: rgba(255, 255, 255, 0.7); font-size: 1rem; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(5px); }
-        .skip-btn:active { background: rgba(255, 255, 255, 0.1); color: #fff; }
-
-        /* 播放器页 */
-        #player-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1s ease; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 100%); display: none; }
-        #player-page.active { opacity: 1; display: block; }
-        .artistic-player { position: relative; width: 100%; height: 100%; }
-        .player-header { position: absolute; top: env(safe-area-inset-top, 0); left: 0; width: 100%; padding: 15px 10px; display: flex; justify-content: center; align-items: center; z-index: 50; background: transparent; }
-        .player-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
-        .control-btn { padding: 10px 18px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; backdrop-filter: blur(10px); white-space: nowrap; }
-        .control-btn:active { background: rgba(255, 255, 255, 0.2); transform: scale(0.98); }
-        .player-footer { position: absolute; bottom: max(20px, env(safe-area-inset-bottom, 20px)); left: 0; width: 100%; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; z-index: 50; background: transparent; gap: 15px; }
-        .playback-controls { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%; flex-wrap: wrap; }
-        .time-display { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); min-width: 100px; text-align: center; }
-        .progress-bar { width: 85%; max-width: 400px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: relative; cursor: pointer; margin: 5px 0; }
-        .progress-fill { position: absolute; height: 100%; width: 0%; background: rgba(255, 255, 255, 0.8); border-radius: 3px; }
-        .volume-control-container { display: flex; align-items: center; gap: 8px; }
-        .volume-icon-btn { background: none; border: none; color: rgba(255, 255, 255, 0.9); cursor: pointer; font-size: 1.2rem; padding: 8px; display: flex; align-items: center; justify-content: center; }
-        .volume-slider-container { width: 70px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: relative; cursor: pointer; }
-        .volume-slider-fill { position: absolute; height: 100%; width: 70%; background: rgba(255, 255, 255, 0.8); border-radius: 3px; pointer-events: none; }
-        .volume-slider-handle { position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; left: 70%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
-        .back-btn { position: absolute; top: max(20px, env(safe-area-inset-top, 20px)); left: 20px; padding: 10px 18px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; z-index: 60; backdrop-filter: blur(10px); font-size: 0.9rem; }
-        .back-btn:active { background: rgba(255, 255, 255, 0.2); transform: translateX(-3px); }
-        #panorama-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; touch-action: pan-x pan-y pinch-zoom; }
-        .artistic-decoration { position: absolute; z-index: 10; pointer-events: none; }
-        .decoration-1 { top: 20%; right: 5%; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(157, 78, 221, 0.2) 0%, transparent 70%); filter: blur(20px); }
-        .decoration-2 { bottom: 20%; left: 5%; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle, rgba(78, 205, 196, 0.2) 0%, transparent 70%); filter: blur(20px); }
-
-        /* 上传界面 */
-        .upload-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 18, 0.95); display: flex; justify-content: center; align-items: center; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(10px); padding: 20px; }
-        .upload-overlay.active { opacity: 1; pointer-events: all; }
-        .upload-content { background: rgba(26, 26, 46, 0.95); border-radius: 20px; padding: 30px; width: 100%; max-width: 500px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5); text-align: center; }
-        .upload-title { font-size: 1.5rem; margin-bottom: 15px; background: linear-gradient(45deg, #9d4edd, #4ecdc4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-        .upload-options { display: flex; gap: 15px; justify-content: center; margin: 25px 0; flex-direction: column; align-items: center; }
-        .upload-option { display: flex; flex-direction: column; align-items: center; padding: 25px 20px; border-radius: 15px; background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease; width: 100%; max-width: 200px; }
-        .upload-option:active { background: rgba(255, 255, 255, 0.1); border-color: #9d4edd; transform: scale(0.98); }
-        .upload-option i { font-size: 2.5rem; margin-bottom: 10px; color: #9d4edd; }
-        .upload-option span { font-size: 1rem; color: rgba(255, 255, 255, 0.9); }
-        .close-upload { margin-top: 20px; padding: 12px 30px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; font-size: 1rem; }
-        .close-upload:active { background: rgba(255, 255, 255, 0.2); }
-        #file-input { display: none; }
-        .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 18, 0.9); display: flex; justify-content: center; align-items: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(5px); }
-        .loading-overlay.active { opacity: 1; pointer-events: all; }
-        .loading-spinner { width: 60px; height: 60px; border: 4px solid rgba(255, 255, 255, 0.1); border-radius: 50%; border-top-color: #9d4edd; animation: spin 1s linear infinite; }
-        .loading-text { margin-top: 20px; color: rgba(255, 255, 255, 0.8); font-size: 1rem; }
-        .status-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); padding: 20px 30px; border-radius: 15px; text-align: center; z-index: 101; display: none; }
-        .status-message.active { display: block; }
-
-        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }
-        .pulse { animation: pulse 3s ease-in-out infinite; }
-        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .float { animation: float 5s ease-in-out infinite; }
-
-        @media (min-width: 768px) { .player-footer { flex-direction: row; justify-content: center; } .progress-bar { width: 40%; margin: 0 20px; } .upload-options { flex-direction: row; } .upload-option { max-width: 180px; } }
-        @media (max-width: 480px) { .portal-text { font-size: 15vw; } .control-btn { padding: 8px 16px; font-size: 0.85rem; } .time-display { font-size: 0.8rem; min-width: 80px; } .progress-bar { width: 95%; } .volume-slider-container { width: 50px; } }
-    </style>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2113.65">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+    p.p3 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px 'PingFang SC'}
+    span.s1 {font: 12.0px 'PingFang SC'}
+    span.s2 {font: 12.0px Helvetica}
+  </style>
 </head>
 <body>
-    <div id="home-page">
-        <div class="portal-container">
-            <div class="artistic-arcs">
-                <div class="arc"></div><div class="arc"></div><div class="arc"></div><div class="arc"></div><div class="arc"></div>
-                <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-            </div>
-            <div class="portal-center pulse" id="enter-portal">
-                <div class="portal-text">VR</div>
-            </div>
-        </div>
-        <div class="hint-text">进入雅虹全景播放器</div>
-        <div class="skip-btn" id="skip-btn">跳过 ></div>
-    </div>
-
-    <div id="player-page">
-        <div class="back-btn" id="back-btn">&lt; 返回</div>
-        <div class="artistic-decoration decoration-1"></div>
-        <div class="artistic-decoration decoration-2"></div>
-        <!-- 状态消息容器 -->
-        <div class="status-message" id="status-message"></div>
-        <div class="loading-overlay" id="loading-overlay">
-            <div style="text-align: center;">
-                <div class="loading-spinner"></div>
-                <div class="loading-text" id="loading-text">正在加载...</div>
-            </div>
-        </div>
-        <div class="artistic-player">
-            <div class="player-header">
-                <div class="player-controls">
-                    <div class="control-btn" id="upload-btn">上传文件</div>
-                    <div class="control-btn" id="gyro-btn">陀螺仪 关</div>
-                </div>
-            </div>
-            <div id="panorama-container"></div>
-            <div class="player-footer">
-                <div class="playback-controls">
-                    <div class="control-btn" id="play-btn"><i class="fas fa-play"></i> 播放</div>
-                    <div class="time-display">00:00 / 00:00</div>
-                    <div class="volume-control-container">
-                        <button class="volume-icon-btn" id="volume-toggle-btn"><i class="fas fa-volume-up"></i></button>
-                        <div class="volume-slider-container" id="volume-slider-container">
-                            <div class="volume-slider-fill" id="volume-slider-fill"></div>
-                            <div class="volume-slider-handle" id="volume-slider-handle"></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="progress-bar" id="progress-bar-container">
-                    <div class="progress-fill" id="progress-fill"></div>
-                </div>
-                <div class="player-controls">
-                    <div class="control-btn" id="fullscreen-btn">全屏</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="upload-overlay" id="upload-overlay">
-        <div class="upload-content">
-            <h2 class="upload-title">上传文件</h2>
-            <p style="color: rgba(255,255,255,0.7); margin-bottom: 20px;">请选择视频或图片文件</p>
-            <div class="upload-options">
-                <div class="upload-option" id="upload-video-btn"><i class="fas fa-video"></i><span>视频文件</span></div>
-                <div class="upload-option" id="upload-image-btn"><i class="fas fa-image"></i><span>图片文件</span></div>
-            </div>
-            <p style="margin: 20px 0; color: rgba(255, 255, 255, 0.5); font-size: 0.9rem;">建议使用H.264编码的MP4视频</p>
-            <input type="file" id="file-input" accept="video/*,image/*">
-            <button class="close-upload" id="close-upload">关闭</button>
-        </div>
-    </div>
-
-    <script>
-        // DOM元素初始化
-        const homePage = document.getElementById('home-page');
-        const playerPage = document.getElementById('player-page');
-        const enterPortal = document.getElementById('enter-portal');
-        const skipBtn = document.getElementById('skip-btn');
-        const backBtn = document.getElementById('back-btn');
-        const panoramaContainer = document.getElementById('panorama-container');
-        const uploadBtn = document.getElementById('upload-btn');
-        const uploadOverlay = document.getElementById('upload-overlay');
-        const closeUpload = document.getElementById('close-upload');
-        const uploadVideoBtn = document.getElementById('upload-video-btn');
-        const uploadImageBtn = document.getElementById('upload-image-btn');
-        const fileInput = document.getElementById('file-input');
-        const playBtn = document.getElementById('play-btn');
-        const gyroBtn = document.getElementById('gyro-btn');
-        const fullscreenBtn = document.getElementById('fullscreen-btn');
-        const progressBarContainer = document.getElementById('progress-bar-container');
-        const progressFill = document.getElementById('progress-fill');
-        const timeDisplay = document.querySelector('.time-display');
-        const loadingOverlay = document.getElementById('loading-overlay');
-        const loadingText = document.getElementById('loading-text');
-        const statusMessage = document.getElementById('status-message');
-        const volumeToggleBtn = document.getElementById('volume-toggle-btn');
-        const volumeSliderContainer = document.getElementById('volume-slider-container');
-        const volumeSliderFill = document.getElementById('volume-slider-fill');
-        const volumeSliderHandle = document.getElementById('volume-slider-handle');
-
-        // Three.js场景变量
-        let scene, camera, renderer, sphere, video, videoTexture, imageTexture;
-        let isPlaying = false;
-        let isGyroEnabled = false;
-        let isUserInteracting = false;
-        let lon = 0, lat = 0;
-        let onPointerDownLon = 0, onPointerDownLat = 0;
-        let onPointerDownPointerX = 0, onPointerDownPointerY = 0;
-        let phi = 0, theta = 0;
-        let currentMediaType = null;
-        let currentMediaSrc = null;
-        let isMuted = false;
-        let currentVolume = 0.7;
-        let autoRotationSpeed = 0.05;
-        let initialFov = 75;
-        let minFov = 10;
-        let maxFov = 110;
-        let pinchZoomDistance = 0;
-        let isPinchZooming = false;
-
-        // 初始化
-        document.addEventListener('DOMContentLoaded', () => {
-            initArcAnimations();
-            enterPortal.addEventListener('click', enterPlayer);
-            skipBtn.addEventListener('click', enterPlayer);
-            backBtn.addEventListener('click', exitPlayer);
-            uploadBtn.addEventListener('click', () => uploadOverlay.classList.add('active'));
-            closeUpload.addEventListener('click', () => uploadOverlay.classList.remove('active'));
-            uploadVideoBtn.addEventListener('click', () => { fileInput.accept = "video/*"; fileInput.click(); });
-            uploadImageBtn.addEventListener('click', () => { fileInput.accept = "image/*"; fileInput.click(); });
-            fileInput.addEventListener('change', (e) => { if (e.target.files[0]) { loadMediaFile(e.target.files[0]); uploadOverlay.classList.remove('active'); } });
-            playBtn.addEventListener('click', togglePlay);
-            gyroBtn.addEventListener('click', toggleGyro);
-            fullscreenBtn.addEventListener('click', toggleFullscreen);
-            progressBarContainer.addEventListener('click', (e) => { if (video && currentMediaType === 'video') { const rect = progressBarContainer.getBoundingClientRect(); const percent = (e.clientX - rect.left) / rect.width; video.currentTime = video.duration * percent; } });
-            initVolumeControl();
-            initPanoramaViewer();
-            setupEventListeners();
-        });
-
-        // 音量控制初始化
-        function initVolumeControl() {
-            updateVolumeUI(currentVolume);
-            volumeSliderContainer.addEventListener('click', (e) => {
-                if (!video || currentMediaType !== 'video') return;
-                const rect = volumeSliderContainer.getBoundingClientRect();
-                let clickX = e.clientX - rect.left;
-                clickX = Math.max(0, Math.min(rect.width, clickX));
-                setVolume(clickX / rect.width);
-            });
-            let isDraggingVolume = false;
-            const startDrag = (clientX) => {
-                if (!video || currentMediaType !== 'video') return;
-                isDraggingVolume = true;
-                const onDrag = (moveX) => {
-                    if (!isDraggingVolume) return;
-                    const rect = volumeSliderContainer.getBoundingClientRect();
-                    let dragX = moveX - rect.left;
-                    dragX = Math.max(0, Math.min(rect.width, dragX));
-                    setVolume(dragX / rect.width);
-                };
-                const stopDrag = () => { isDraggingVolume = false; document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('mouseup', stopDrag); document.removeEventListener('touchend', stopDrag); };
-                const onMouseMove = (e) => onDrag(e.clientX);
-                const onTouchMove = (e) => { if(e.touches[0]) onDrag(e.touches[0].clientX); };
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('touchmove', onTouchMove, { passive: false });
-                document.addEventListener('mouseup', stopDrag);
-                document.addEventListener('touchend', stopDrag);
-            };
-            volumeSliderContainer.addEventListener('mousedown', (e) => startDrag(e.clientX));
-            volumeSliderContainer.addEventListener('touchstart', (e) => { e.preventDefault(); if(e.touches[0]) startDrag(e.touches[0].clientX); }, { passive: false });
-            volumeToggleBtn.addEventListener('click', () => { if (!video || currentMediaType !== 'video') return; isMuted = !isMuted; updateVolumeToggleButton(); video.muted = isMuted; });
-            updateVolumeToggleButton();
-        }
-        function setVolume(volume) { currentVolume = Math.max(0, Math.min(1, volume)); if (video) { video.volume = currentVolume; video.muted = false; isMuted = false; } updateVolumeUI(currentVolume); updateVolumeToggleButton(); }
-        function updateVolumeUI(volume) { const percentage = volume * 100; volumeSliderFill.style.width = `${percentage}%`; volumeSliderHandle.style.left = `${percentage}%`; }
-        function updateVolumeToggleButton() { const icon = volumeToggleBtn.querySelector('i'); if (isMuted || currentVolume === 0) { icon.className = 'fas fa-volume-mute'; } else if (currentVolume > 0.5) { icon.className = 'fas fa-volume-up'; } else if (currentVolume > 0) { icon.className = 'fas fa-volume-down'; } else { icon.className = 'fas fa-volume-off'; } }
-
-        // 初始化全景查看器
-        function initPanoramaViewer() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(initialFov, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 0, 0.1);
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setClearColor(0x000000, 1);
-            panoramaContainer.appendChild(renderer.domElement);
-            const geometry = new THREE.SphereGeometry(500, 60, 40);
-            geometry.scale(-1, 1, 1);
-            const material = new THREE.MeshBasicMaterial({ color: 0x666666, wireframe: true, transparent: true, opacity: 0.3 });
-            sphere = new THREE.Mesh(geometry, material);
-            scene.add(sphere);
-            const pointLight1 = new THREE.PointLight(0x9d4edd, 0.8, 300); pointLight1.position.set(100, 100, 100); scene.add(pointLight1);
-            const pointLight2 = new THREE.PointLight(0x4ecdc4, 0.6, 300); pointLight2.position.set(-100, -100, -100); scene.add(pointLight2);
-            const ambientLight = new THREE.AmbientLight(0x333344, 0.3); scene.add(ambientLight);
-            window.addEventListener('resize', onWindowResize);
-        }
-
-        // 加载媒体文件
-        function loadMediaFile(file) {
-            if (!file) return;
-            stopCurrentMedia();
-            const mediaURL = URL.createObjectURL(file);
-            currentMediaSrc = mediaURL;
-            if (file.type.startsWith('video/')) {
-                currentMediaType = 'video';
-                loadVideo(mediaURL);
-            } else if (file.type.startsWith('image/')) {
-                currentMediaType = 'image';
-                loadImage(mediaURL);
-            } else {
-                showStatus('不支持的文件类型，请上传视频或图片', 'error');
-                return;
-            }
-        }
-
-        // ************ 加载视频文件核心逻辑 ************
-        function loadVideo(src) {
-            loadingText.textContent = '正在加载视频...';
-            loadingOverlay.classList.add('active');
-            if (videoTexture) { videoTexture.dispose(); videoTexture = null; }
-            if (video) { video.pause(); video.src = ''; video.load(); video = null; }
-            video = document.createElement('video');
-            // 核心优化1：设置跨域属性，允许从Blob URL或网络源加载视频
-            video.crossOrigin = 'anonymous';
-            video.loop = true;
-            video.muted = false;
-            video.volume = currentVolume;
-            video.playsInline = true;
-            video.setAttribute('playsinline', '');
-            video.preload = 'metadata';
-
-            video.addEventListener('loadedmetadata', function() {
-                loadingText.textContent = '正在准备视频纹理...';
-                // 核心优化2：监听canplay事件，确保视频纹理可被渲染
-                video.addEventListener('canplay', function onCanPlay() {
-                    video.removeEventListener('canplay', onCanPlay);
-                    try {
-                        if (videoTexture) videoTexture.dispose();
-                        // 视频纹理
-                        videoTexture = new THREE.VideoTexture(video);
-                        videoTexture.minFilter = THREE.LinearFilter;
-                        videoTexture.magFilter = THREE.LinearFilter;
-                        videoTexture.format = THREE.RGBAFormat;
-                        // 应用到球体贴图
-                        sphere.material.map = videoTexture;
-                        sphere.material.color.set(0xffffff);
-                        sphere.material.wireframe = false;
-                        sphere.material.transparent = false;
-                        sphere.material.opacity = 1;
-                        sphere.material.needsUpdate = true;
-                        // 启用播放控制
-                        playBtn.style.opacity = '1';
-                        playBtn.style.pointerEvents = 'auto';
-                        updateTimeDisplay(0, video.duration);
-                        isPlaying = false;
-                        playBtn.innerHTML = '<i class="fas fa-play"></i> 播放';
-                        // 为防止自动播放被浏览器阻止，先暂停
-                        video.pause();
-                        updateVolumeToggleButton();
-                        loadingOverlay.classList.remove('active');
-                        showStatus('视频加载成功，可以播放了', 'success');
-                    } catch (textureError) {
-                        console.error('视频纹理创建失败:', textureError);
-                        loadingOverlay.classList.remove('active');
-                        showStatus('视频纹理创建失败，视频编码可能不支持', 'error');
-                    }
-                }, { once: true });
-                // 尝试自动播放以解锁音频，但立即暂停
-                const playPromise = video.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => { video.pause(); }).catch(e => { /* 忽略自动播放失败错误 */ });
-                }
-            });
-
-            video.addEventListener('timeupdate', function() {
-                if (video.duration) {
-                    const progress = (video.currentTime / video.duration) * 100;
-                    progressFill.style.width = `${progress}%`;
-                    updateTimeDisplay(video.currentTime, video.duration);
-                }
-            });
-
-            video.addEventListener('ended', function() { isPlaying = false; playBtn.innerHTML = '<i class="fas fa-play"></i> 播放'; });
-
-            video.addEventListener('error', function(e) {
-                console.error('视频加载错误:', video.error);
-                loadingOverlay.classList.remove('active');
-                let msg = '视频加载失败。';
-                if (video.error && video.error.code === 4) {
-                    msg += ' 不支持此格式或编码。';
-                } else {
-                    msg += ' 请确保是H.264 MP4编码的兼容视频。';
-                }
-                showStatus(msg, 'error');
-            });
-
-            // 设置视频源
-            video.src = src;
-            video.load();
-        }
-
-        function loadImage(src) {
-            playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none';
-            progressFill.style.width = '0%'; updateTimeDisplay(0, 0);
-            if (imageTexture) imageTexture.dispose();
-            const textureLoader = new THREE.TextureLoader();
-            loadingText.textContent = '正在加载图片...';
-            loadingOverlay.classList.add('active');
-            textureLoader.load( src,
-                function(texture) {
-                    imageTexture = texture;
-                    imageTexture.minFilter = THREE.LinearFilter;
-                    imageTexture.magFilter = THREE.LinearFilter;
-                    sphere.material.map = imageTexture;
-                    sphere.material.color.set(0xffffff);
-                    sphere.material.wireframe = false;
-                    sphere.material.transparent = false;
-                    sphere.material.opacity = 1;
-                    sphere.material.needsUpdate = true;
-                    loadingOverlay.classList.remove('active');
-                    showStatus('图片文件加载成功', 'success');
-                },
-                undefined,
-                function(error) {
-                    console.error('图片加载错误:', error);
-                    loadingOverlay.classList.remove('active');
-                    showStatus('图片加载失败，请重试', 'error');
-                }
-            );
-        }
-
-        function stopCurrentMedia() {
-            if (video) { video.pause(); isPlaying = false; playBtn.innerHTML = '<i class="fas fa-play"></i> 播放'; }
-        }
-
-        function togglePlay() {
-            if (video && currentMediaType === 'video') {
-                if (isPlaying) {
-                    video.pause();
-                    playBtn.innerHTML = '<i class="fas fa-play"></i> 播放';
-                } else {
-                    video.play().then(() => {
-                        playBtn.innerHTML = '<i class="fas fa-pause"></i> 暂停';
-                        showStatus('', 'success'); // 清空成功消息
-                    }).catch(e => {
-                        console.log("播放失败:", e);
-                        showStatus('播放失败，请检查浏览器设置', 'error');
-                    });
-                }
-                isPlaying = !isPlaying;
-            }
-        }
-
-        function showStatus(text, type) {
-            statusMessage.textContent = text;
-            statusMessage.className = 'status-message';
-            if (text) {
-                statusMessage.classList.add('active');
-                statusMessage.style.color = type === 'error' ? '#ff6b6b' : '#06d6a0';
-                setTimeout(() => { statusMessage.classList.remove('active'); }, 3000);
-            }
-        }
-
-        // 其他功能函数 (initArcAnimations, enterPlayer, exitPlayer, setupEventListeners, 以及陀螺仪、全屏、鼠标控制等相关函数)
-        // 以下为原始文件中已存在的功能函数，为保持完整性保留，但已修正内部的中文注释和字符串
-        // 注意：为节省空间，这里不重复修正所有注释，但关键用户界面字符串已在上述代码中修正。
-        // 核心改动：将所有用户可见的中文乱码文本替换为正确中文，内部注释和逻辑保持不变。
-        function initArcAnimations() { document.querySelectorAll('.arc').forEach(arc => { arc.style.animationDelay = `${Math.random() * -10}s`; arc.style.animationDuration = `${20 + Math.random() * 20}s`; if (Math.random() > 0.5) arc.style.animationDirection = 'reverse'; }); document.querySelectorAll('.dot').forEach(dot => { dot.style.animationDelay = `${Math.random() * 5}s`; }); }
-        function enterPlayer() { homePage.classList.add('fade-out'); setTimeout(() => { homePage.style.display = 'none'; playerPage.classList.add('active'); animatePanorama(); }, 1000); }
-        function exitPlayer() { stopCurrentMedia(); currentMediaType = null; if (videoTexture) { sphere.material.map = null; sphere.material.color.set(0x666666); sphere.material.wireframe = true; sphere.material.transparent = true; sphere.material.opacity = 0.3; sphere.material.needsUpdate = true; videoTexture.dispose(); videoTexture = null; } if (imageTexture) { sphere.material.map = null; sphere.material.color.set(0x666666); sphere.material.wireframe = true; sphere.material.transparent = true; sphere.material.opacity = 0.3; sphere.material.needsUpdate = true; imageTexture.dispose(); imageTexture = null; } playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none'; progressFill.style.width = '0%'; updateTimeDisplay(0, 0); playerPage.classList.remove('active'); setTimeout(() => { homePage.style.display = 'flex'; homePage.classList.remove('fade-out'); }, 500); }
-        function setupEventListeners() { panoramaContainer.style.touchAction = 'none'; panoramaContainer.addEventListener('pointerdown', onPointerDown); document.addEventListener('pointermove', onPointerMove); document.addEventListener('pointerup', onPointerUp); panoramaContainer.addEventListener('wheel', onDocumentMouseWheel, { passive: false }); panoramaContainer.addEventListener('touchstart', onTouchStart, { passive: false }); panoramaContainer.addEventListener('touchmove', onTouchMove, { passive: false }); panoramaContainer.addEventListener('touchend', onTouchEnd); document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && playerPage.classList.contains('active')) exitPlayer(); if (e.key === ' ' && playerPage.classList.contains('active') && currentMediaType === 'video') { e.preventDefault(); if (playBtn && !playBtn.disabled) playBtn.click(); } if (e.key === 'f' || e.key === 'F') toggleFullscreen(); if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); } if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomOut(); } if (e.key === '0') { e.preventDefault(); resetZoom(); } if (e.key === 'ArrowUp' && video && currentMediaType === 'video') { e.preventDefault(); setVolume(Math.min(1, currentVolume + 0.1)); } if (e.key === 'ArrowDown' && video && currentMediaType === 'video') { e.preventDefault(); setVolume(Math.max(0, currentVolume - 0.1)); } if (e.key === 'm' || e.key === 'M') { e.preventDefault(); if (video && currentMediaType === 'video') volumeToggleBtn.click(); } }); }
-        function onPointerDown(e) { if (e.isPrimary === false || e.button !== 0) return; isUserInteracting = true; onPointerDownPointerX = e.clientX; onPointerDownPointerY = e.clientY; onPointerDownLon = lon; onPointerDownLat = lat; }
-        function onPointerMove(e) { if (e.isPrimary === false || !isUserInteracting || isGyroEnabled) return; const dx = e.clientX - onPointerDownPointerX; const dy = e.clientY - onPointerDownPointerY; const sensitivity = 0.1; const fovSensetivity = camera.fov / 60; lon = (onPointerDownLon - dx * sensitivity * fovSensetivity); lat = (onPointerDownLat + dy * sensitivity * fovSensetivity); }
-        function onPointerUp() { isUserInteracting = false; }
-        function onDocumentMouseWheel(e) { e.preventDefault(); e.deltaY < 0 ? zoomIn() : zoomOut(); }
-        function onTouchStart(e) { if (e.touches.length === 2) { isPinchZooming = true; isUserInteracting = false; const dx = e.touches[0].pageX - e.touches[1].pageX; const dy = e.touches[0].pageY - e.touches[1].pageY; pinchZoomDistance = Math.sqrt(dx * dx + dy * dy); initialFov = camera.fov; } else if (e.touches.length === 1) { isUserInteracting = true; onPointerDownPointerX = e.touches[0].clientX; onPointerDownPointerY = e.touches[0].clientY; onPointerDownLon = lon; onPointerDownLat = lat; } }
-        function onTouchMove(e) { if (e.touches.length === 2 && isPinchZooming) { e.preventDefault(); const dx = e.touches[0].pageX - e.touches[1].pageX; const dy = e.touches[0].pageY - e.touches[1].pageY; const currentDistance = Math.sqrt(dx * dx + dy * dy); if (pinchZoomDistance > 0) { const scale = pinchZoomDistance / currentDistance; let newFov = initialFov * scale; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); } } else if (e.touches.length === 1 && isUserInteracting && !isGyroEnabled) { const dx = e.touches[0].clientX - onPointerDownPointerX; const dy = e.touches[0].clientY - onPointerDownPointerY; const sensitivity = 0.25; const fovSensetivity = camera.fov / 60; lon = (onPointerDownLon - dx * sensitivity * fovSensetivity); lat = (onPointerDownLat + dy * sensitivity * fovSensetivity); } }
-        function onTouchEnd(e) { if (e.touches.length < 2) isPinchZooming = false; if (e.touches.length === 0) isUserInteracting = false; }
-        function zoomIn() { let newFov = camera.fov - 5; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); }
-        function zoomOut() { let newFov = camera.fov + 5; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); }
-        function resetZoom() { camera.fov = initialFov; camera.updateProjectionMatrix(); }
-        function updateCamera() { if (isGyroEnabled) return; lat = Math.max(-85, Math.min(85, lat)); phi = THREE.MathUtils.degToRad(90 - lat); theta = THREE.MathUtils.degToRad(lon); const x = 500 * Math.sin(phi) * Math.cos(theta); const y = 500 * Math.cos(phi); const z = 500 * Math.sin(phi) * Math.sin(theta); camera.lookAt(x, y, z); }
-        function toggleGyro() { if (!isGyroEnabled) { if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') { DeviceOrientationEvent.requestPermission().then(response => { if (response === 'granted') enableGyro(); else alert('设备方向权限被拒绝，无法启用陀螺仪'); }).catch(error => console.error('请求陀螺仪权限:', error)); } else { enableGyro(); } } else { disableGyro(); } }
-        function enableGyro() { isGyroEnabled = true; gyroBtn.textContent = '陀螺仪 开'; gyroBtn.style.background = 'rgba(157, 78, 221, 0.2)'; gyroBtn.style.borderColor = '#9d4edd'; window.addEventListener('deviceorientation', onDeviceOrientation); }
-        function disableGyro() { isGyroEnabled = false; gyroBtn.textContent = '陀螺仪 关'; gyroBtn.style.background = ''; gyroBtn.style.borderColor = ''; window.removeEventListener('deviceorientation', onDeviceOrientation); }
-        function onDeviceOrientation(e) { if (!isGyroEnabled) return; const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; const beta = e.beta ? THREE.MathUtils.degToRad(e.beta) : 0; const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; camera.rotation.x = -beta; camera.rotation.y = -alpha; camera.rotation.z = gamma; }
-        function toggleFullscreen() { if (!document.fullscreenElement) { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.mozRequestFullScreen) document.documentElement.mozRequestFullScreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); else if (document.documentElement.msRequestFullscreen) document.documentElement.msRequestfullscreen(); } else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.mozCancelFullScreen) document.mozCancelFullScreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); else if (document.msExitFullscreen) document.msExitFullscreen(); } }
-        function updateTimeDisplay(current, duration) { const formatTime = (s) => { const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`; }; timeDisplay.textContent = duration > 0 ? `${formatTime(current)} / ${formatTime(duration)}` : '00:00 / 00:00'; }
-        function animatePanorama() { requestAnimationFrame(animatePanorama); if (!isGyroEnabled) updateCamera(); if (!currentMediaType && !isGyroEnabled && !isUserInteracting) { lon += autoRotationSpeed; lat = Math.max(-85, Math.min(85, lat)); phi = THREE.MathUtils.degToRad(90 - lat); theta = THREE.MathUtils.degToRad(lon); const x = 500 * Math.sin(phi) * Math.cos(theta); const y = 500 * Math.cos(phi); const z = 500 * Math.sin(phi) * Math.sin(theta); camera.lookAt(x, y, z); } if (video && currentMediaType === 'video' && videoTexture) { videoTexture.needsUpdate = true; } renderer.render(scene, camera); }
-        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
-        document.addEventListener('fullscreenchange', () => { fullscreenBtn.textContent = document.fullscreenElement ? '退出全屏' : '全屏'; });
-    </script>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="zh-CN"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;title&gt;<span class="s1">雅虹全景播放器</span> | <span class="s1">沉浸式体验</span>&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>html, body { width: 100%; height: 100%; overflow: hidden; touch-action: manipulation; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a12; color: #fff; overflow: hidden; height: 100vh; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* <span class="s1">首页</span> - <span class="s1">启动页</span> */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#home-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 70%); transition: opacity 1.5s ease, transform 1.5s ease; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#home-page.fade-out { opacity: 0; transform: scale(1.1); pointer-events: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.portal-container { position: relative; width: 85vmin; height: 85vmin; max-width: 500px; max-height: 500px; display: flex; justify-content: center; align-items: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.artistic-arcs { position: absolute; width: 100%; height: 100%; border-radius: 50%; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.arc { position: absolute; border-radius: 50%; border: 2px solid transparent; border-top-color: currentColor; animation: spin 20s linear infinite; top: 50%; left: 50%; transform: translate(-50%, -50%); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.arc:nth-child(1) { width: 80%; height: 80%; color: #ff6b6b; animation-duration: 25s; border-width: 3px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.arc:nth-child(2) { width: 90%; height: 90%; color: #4ecdc4; animation-delay: -2s; animation-duration: 30s; animation-direction: reverse; border-width: 2px;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.arc:nth-child(3) { width: 70%; height: 70%; color: #ffd166; animation-delay: -4s; animation-duration: 20s; border-width: 3px;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.arc:nth-child(4) { width: 95%; height: 95%; color: #9d4edd; animation-delay: -6s; animation-duration: 35s; border-width: 2px;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.arc:nth-child(5) { width: 65%; height: 65%; color: #06d6a0; animation-delay: -8s; animation-duration: 22s; border-width: 3px;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot { position: absolute; width: 3vmin; height: 3vmin; max-width: 15px; max-height: 15px; border-radius: 50%; background-color: currentColor; filter: blur(0.5px); animation: float 5s ease-in-out infinite; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(6) { top: 10%; left: 50%; color: #ff6b6b; transform: translateX(-50%); animation-delay: 0s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(7) { top: 50%; right: 10%; color: #4ecdc4; transform: translateY(-50%); animation-delay: 1s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(8) { bottom: 20%; left: 15%; color: #ffd166; animation-delay: 2s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(9) { top: 30%; left: 15%; color: #9d4edd; animation-delay: 3s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(10) { bottom: 40%; right: 20%; color: #06d6a0; animation-delay: 4s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(11) { top: 15%; right: 25%; color: #ff6b6b; animation-delay: 5s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.dot:nth-child(12) { bottom: 15%; right: 40%; color: #4ecdc4; animation-delay: 6s;}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.portal-center { position: absolute; width: 35vmin; height: 35vmin; max-width: 180px; max-height: 180px; min-width: 120px; min-height: 120px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.5s ease; z-index: 10; box-shadow: 0 0 30px rgba(157, 78, 221, 0.3), inset 0 0 20px rgba(255, 255, 255, 0.1); top: 50%; left: 50%; transform: translate(-50%, -50%); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.portal-center:active { transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 50px rgba(157, 78, 221, 0.6), inset 0 0 30px rgba(255, 255, 255, 0.2); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.portal-text { font-size: 10vmin; font-weight: 900; background: linear-gradient(45deg, #9d4edd, #4ecdc4, #ff6b6b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 2px; text-align: center; line-height: 1; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.hint-text { position: absolute; bottom: 20vh; font-size: 1rem; color: rgba(255, 255, 255, 0.7); text-align: center; width: 100%; padding: 0 20px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.skip-btn { position: absolute; bottom: 30px; right: 20px; padding: 12px 24px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 30px; color: rgba(255, 255, 255, 0.7); font-size: 1rem; cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(5px); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.skip-btn:active { background: rgba(255, 255, 255, 0.1); color: #fff; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* <span class="s1">播放器页</span> */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#player-page { position: fixed; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1s ease; background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a12 100%); display: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#player-page.active { opacity: 1; display: block; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.artistic-player { position: relative; width: 100%; height: 100%; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.player-header { position: absolute; top: env(safe-area-inset-top, 0); left: 0; width: 100%; padding: 15px 10px; display: flex; justify-content: center; align-items: center; z-index: 50; background: transparent; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.player-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.control-btn { padding: 10px 18px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; font-size: 0.9rem; backdrop-filter: blur(10px); white-space: nowrap; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.control-btn:active { background: rgba(255, 255, 255, 0.2); transform: scale(0.98); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.player-footer { position: absolute; bottom: max(20px, env(safe-area-inset-bottom, 20px)); left: 0; width: 100%; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; z-index: 50; background: transparent; gap: 15px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.playback-controls { display: flex; align-items: center; justify-content: center; gap: 15px; width: 100%; flex-wrap: wrap; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.time-display { font-size: 0.85rem; color: rgba(255, 255, 255, 0.7); min-width: 100px; text-align: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.progress-bar { width: 85%; max-width: 400px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: relative; cursor: pointer; margin: 5px 0; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.progress-fill { position: absolute; height: 100%; width: 0%; background: rgba(255, 255, 255, 0.8); border-radius: 3px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.volume-control-container { display: flex; align-items: center; gap: 8px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.volume-icon-btn { background: none; border: none; color: rgba(255, 255, 255, 0.9); cursor: pointer; font-size: 1.2rem; padding: 8px; display: flex; align-items: center; justify-content: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.volume-slider-container { width: 70px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: relative; cursor: pointer; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.volume-slider-fill { position: absolute; height: 100%; width: 70%; background: rgba(255, 255, 255, 0.8); border-radius: 3px; pointer-events: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.volume-slider-handle { position: absolute; width: 16px; height: 16px; background: #fff; border-radius: 50%; left: 70%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 5px rgba(0,0,0,0.5); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.back-btn { position: absolute; top: max(20px, env(safe-area-inset-top, 20px)); left: 20px; padding: 10px 18px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; z-index: 60; backdrop-filter: blur(10px); font-size: 0.9rem; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.back-btn:active { background: rgba(255, 255, 255, 0.2); transform: translateX(-3px); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#panorama-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; touch-action: pan-x pan-y pinch-zoom; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.artistic-decoration { position: absolute; z-index: 10; pointer-events: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.decoration-1 { top: 20%; right: 5%; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(157, 78, 221, 0.2) 0%, transparent 70%); filter: blur(20px); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.decoration-2 { bottom: 20%; left: 5%; width: 150px; height: 150px; border-radius: 50%; background: radial-gradient(circle, rgba(78, 205, 196, 0.2) 0%, transparent 70%); filter: blur(20px); }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>/* <span class="s1">上传界面</span> */</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 18, 0.95); display: flex; justify-content: center; align-items: center; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(10px); padding: 20px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-overlay.active { opacity: 1; pointer-events: all; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-content { background: rgba(26, 26, 46, 0.95); border-radius: 20px; padding: 30px; width: 100%; max-width: 500px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5); text-align: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-title { font-size: 1.5rem; margin-bottom: 15px; background: linear-gradient(45deg, #9d4edd, #4ecdc4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-options { display: flex; gap: 15px; justify-content: center; margin: 25px 0; flex-direction: column; align-items: center; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-option { display: flex; flex-direction: column; align-items: center; padding: 25px 20px; border-radius: 15px; background: rgba(255, 255, 255, 0.05); border: 2px solid transparent; cursor: pointer; transition: all 0.3s ease; width: 100%; max-width: 200px; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-option:active { background: rgba(255, 255, 255, 0.1); border-color: #9d4edd; transform: scale(0.98); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-option i { font-size: 2.5rem; margin-bottom: 10px; color: #9d4edd; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.upload-option span { font-size: 1rem; color: rgba(255, 255, 255, 0.9); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.close-upload { margin-top: 20px; padding: 12px 30px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 25px; color: rgba(255, 255, 255, 0.9); cursor: pointer; transition: all 0.3s ease; font-size: 1rem; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.close-upload:active { background: rgba(255, 255, 255, 0.2); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#file-input { display: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 18, 0.9); display: flex; justify-content: center; align-items: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(5px); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.loading-overlay.active { opacity: 1; pointer-events: all; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.loading-spinner { width: 60px; height: 60px; border: 4px solid rgba(255, 255, 255, 0.1); border-radius: 50%; border-top-color: #9d4edd; animation: spin 1s linear infinite; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.loading-text { margin-top: 20px; color: rgba(255, 255, 255, 0.8); font-size: 1rem; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.status-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); padding: 20px 30px; border-radius: 15px; text-align: center; z-index: 101; display: none; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.status-message.active { display: block; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>@keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>@keyframes pulse { 0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.pulse { animation: pulse 3s ease-in-out infinite; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.float { animation: float 5s ease-in-out infinite; }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>@media (min-width: 768px) { .player-footer { flex-direction: row; justify-content: center; } .progress-bar { width: 40%; margin: 0 20px; } .upload-options { flex-direction: row; } .upload-option { max-width: 180px; } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>@media (max-width: 480px) { .portal-text { font-size: 15vw; } .control-btn { padding: 8px 16px; font-size: 0.85rem; } .time-display { font-size: 0.8rem; min-width: 80px; } .progress-bar { width: 95%; } .volume-slider-container { width: 50px; } }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="home-page"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="portal-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="artistic-arcs"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="arc"&gt;&lt;/div&gt;&lt;div class="arc"&gt;&lt;/div&gt;&lt;div class="arc"&gt;&lt;/div&gt;&lt;div class="arc"&gt;&lt;/div&gt;&lt;div class="arc"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="dot"&gt;&lt;/div&gt;&lt;div class="dot"&gt;&lt;/div&gt;&lt;div class="dot"&gt;&lt;/div&gt;&lt;div class="dot"&gt;&lt;/div&gt;&lt;div class="dot"&gt;&lt;/div&gt;&lt;div class="dot"&gt;&lt;/div&gt;&lt;div class="dot"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="portal-center pulse" id="enter-portal"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="portal-text"&gt;RVR&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="hint-text"&gt;<span class="s1">进入雅虹全景播放器</span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="skip-btn" id="skip-btn"&gt;<span class="s1">跳过</span> &gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="player-page"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="back-btn" id="back-btn"&gt;&amp;lt; <span class="s1">返回</span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="artistic-decoration decoration-1"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="artistic-decoration decoration-2"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;!-- <span class="s1">状态消息容器</span> --&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="status-message" id="status-message"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="loading-overlay" id="loading-overlay"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div style="text-align: center;"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="loading-spinner"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="loading-text" id="loading-text"&gt;<span class="s1">正在加载</span>...&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="artistic-player"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="player-header"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="player-controls"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="control-btn" id="upload-btn"&gt;<span class="s1">上传文件</span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="control-btn" id="gyro-btn"&gt;<span class="s1">陀螺仪</span> <span class="s1">关</span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div id="panorama-container"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="player-footer"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="playback-controls"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="control-btn" id="play-btn"&gt;&lt;i class="fas fa-play"&gt;&lt;/i&gt; <span class="s1">播放</span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="time-display"&gt;00:00 / 00:00&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="volume-control-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;button class="volume-icon-btn" id="volume-toggle-btn"&gt;&lt;i class="fas fa-volume-up"&gt;&lt;/i&gt;&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;div class="volume-slider-container" id="volume-slider-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;div class="volume-slider-fill" id="volume-slider-fill"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;div class="volume-slider-handle" id="volume-slider-handle"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="progress-bar" id="progress-bar-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="progress-fill" id="progress-fill"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="player-controls"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div class="control-btn" id="fullscreen-btn"&gt;<span class="s1">全屏</span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="upload-overlay" id="upload-overlay"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div class="upload-content"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h2 class="upload-title"&gt;<span class="s1">上传文件</span>&lt;/h2&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p style="color: rgba(255,255,255,0.7); margin-bottom: 20px;"&gt;<span class="s1">请选择视频或图片文件</span>&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;div class="upload-options"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="upload-option" id="upload-video-btn"&gt;&lt;i class="fas fa-video"&gt;&lt;/i&gt;&lt;span&gt;<span class="s1">视频文件</span>&lt;/span&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>&lt;div class="upload-option" id="upload-image-btn"&gt;&lt;i class="fas fa-image"&gt;&lt;/i&gt;&lt;span&gt;<span class="s1">图片文件</span>&lt;/span&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p style="margin: 20px 0; color: rgba(255, 255, 255, 0.5); font-size: 0.9rem;"&gt;<span class="s1">建议使用</span>H.264<span class="s1">编码的</span>MP4<span class="s1">视频</span>&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;input type="file" id="file-input" accept="video/*,image/*"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;button class="close-upload" id="close-upload"&gt;<span class="s1">关闭</span>&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>// DOM<span class="s1">元素初始化</span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>const homePage = document.getElementById('home-page');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const playerPage = document.getElementById('player-page');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const enterPortal = document.getElementById('enter-portal');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const skipBtn = document.getElementById('skip-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const backBtn = document.getElementById('back-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const panoramaContainer = document.getElementById('panorama-container');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const uploadBtn = document.getElementById('upload-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const uploadOverlay = document.getElementById('upload-overlay');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const closeUpload = document.getElementById('close-upload');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const uploadVideoBtn = document.getElementById('upload-video-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const uploadImageBtn = document.getElementById('upload-image-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const fileInput = document.getElementById('file-input');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const playBtn = document.getElementById('play-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const gyroBtn = document.getElementById('gyro-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const fullscreenBtn = document.getElementById('fullscreen-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const progressBarContainer = document.getElementById('progress-bar-container');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const progressFill = document.getElementById('progress-fill');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const timeDisplay = document.querySelector('.time-display');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const loadingOverlay = document.getElementById('loading-overlay');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const loadingText = document.getElementById('loading-text');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const statusMessage = document.getElementById('status-message');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const volumeToggleBtn = document.getElementById('volume-toggle-btn');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const volumeSliderContainer = document.getElementById('volume-slider-container');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const volumeSliderFill = document.getElementById('volume-slider-fill');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const volumeSliderHandle = document.getElementById('volume-slider-handle');</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Three.js<span class="s1">场景变量</span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>let scene, camera, renderer, sphere, video, videoTexture, imageTexture;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let isPlaying = false;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let isGyroEnabled = false;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let isUserInteracting = false;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let lon = 0, lat = 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let onPointerDownLon = 0, onPointerDownLat = 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let onPointerDownPointerX = 0, onPointerDownPointerY = 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let phi = 0, theta = 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let currentMediaType = null;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let currentMediaSrc = null;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let isMuted = false;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let currentVolume = 0.7;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let autoRotationSpeed = 0.05;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let initialFov = 75;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let minFov = 10;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let maxFov = 110;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let pinchZoomDistance = 0;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>let isPinchZooming = false;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// <span class="s1">初始化</span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.addEventListener('DOMContentLoaded', () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>initArcAnimations();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>enterPortal.addEventListener('click', enterPlayer);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>skipBtn.addEventListener('click', enterPlayer);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>backBtn.addEventListener('click', exitPlayer);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>uploadBtn.addEventListener('click', () =&gt; uploadOverlay.classList.add('active'));</p>
+<p class="p1"><span class="Apple-converted-space">            </span>closeUpload.addEventListener('click', () =&gt; uploadOverlay.classList.remove('active'));</p>
+<p class="p1"><span class="Apple-converted-space">            </span>uploadVideoBtn.addEventListener('click', () =&gt; { fileInput.accept = "video/*"; fileInput.click(); });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>uploadImageBtn.addEventListener('click', () =&gt; { fileInput.accept = "image/*"; fileInput.click(); });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>fileInput.addEventListener('change', (e) =&gt; { if (e.target.files[0]) { loadMediaFile(e.target.files[0]); uploadOverlay.classList.remove('active'); } });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>playBtn.addEventListener('click', togglePlay);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>gyroBtn.addEventListener('click', toggleGyro);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>fullscreenBtn.addEventListener('click', toggleFullscreen);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>progressBarContainer.addEventListener('click', (e) =&gt; { if (video &amp;&amp; currentMediaType === 'video') { const rect = progressBarContainer.getBoundingClientRect(); const percent = (e.clientX - rect.left) / rect.width; video.currentTime = video.duration * percent; } });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>initVolumeControl();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>initPanoramaViewer();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>setupEventListeners();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// <span class="s1">音量控制初始化</span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function initVolumeControl() {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>updateVolumeUI(currentVolume);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>volumeSliderContainer.addEventListener('click', (e) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (!video || currentMediaType !== 'video') return;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const rect = volumeSliderContainer.getBoundingClientRect();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let clickX = e.clientX - rect.left;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>clickX = Math.max(0, Math.min(rect.width, clickX));</p>
+<p class="p1"><span class="Apple-converted-space">                </span>setVolume(clickX / rect.width);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">            </span>let isDraggingVolume = false;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const startDrag = (clientX) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (!video || currentMediaType !== 'video') return;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>isDraggingVolume = true;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const onDrag = (moveX) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>if (!isDraggingVolume) return;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const rect = volumeSliderContainer.getBoundingClientRect();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>let dragX = moveX - rect.left;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>dragX = Math.max(0, Math.min(rect.width, dragX));</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>setVolume(dragX / rect.width);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>};</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const stopDrag = () =&gt; { isDraggingVolume = false; document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('touchmove', onTouchMove); document.removeEventListener('mouseup', stopDrag); document.removeEventListener('touchend', stopDrag); };</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const onMouseMove = (e) =&gt; onDrag(e.clientX);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const onTouchMove = (e) =&gt; { if(e.touches[0]) onDrag(e.touches[0].clientX); };</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.addEventListener('mousemove', onMouseMove);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.addEventListener('touchmove', onTouchMove, { passive: false });</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.addEventListener('mouseup', stopDrag);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.addEventListener('touchend', stopDrag);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>};</p>
+<p class="p1"><span class="Apple-converted-space">            </span>volumeSliderContainer.addEventListener('mousedown', (e) =&gt; startDrag(e.clientX));</p>
+<p class="p1"><span class="Apple-converted-space">            </span>volumeSliderContainer.addEventListener('touchstart', (e) =&gt; { e.preventDefault(); if(e.touches[0]) startDrag(e.touches[0].clientX); }, { passive: false });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>volumeToggleBtn.addEventListener('click', () =&gt; { if (!video || currentMediaType !== 'video') return; isMuted = !isMuted; updateVolumeToggleButton(); video.muted = isMuted; });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>updateVolumeToggleButton();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function setVolume(volume) { currentVolume = Math.max(0, Math.min(1, volume)); if (video) { video.volume = currentVolume; video.muted = false; isMuted = false; } updateVolumeUI(currentVolume); updateVolumeToggleButton(); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function updateVolumeUI(volume) { const percentage = volume * 100; volumeSliderFill.style.width = `${percentage}%`; volumeSliderHandle.style.left = `${percentage}%`; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function updateVolumeToggleButton() { const icon = volumeToggleBtn.querySelector('i'); if (isMuted || currentVolume === 0) { icon.className = 'fas fa-volume-mute'; } else if (currentVolume &gt; 0.5) { icon.className = 'fas fa-volume-up'; } else if (currentVolume &gt; 0) { icon.className = 'fas fa-volume-down'; } else { icon.className = 'fas fa-volume-off'; } }</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// <span class="s1">初始化全景查看器</span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function initPanoramaViewer() {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>scene = new THREE.Scene();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>camera = new THREE.PerspectiveCamera(initialFov, window.innerWidth / window.innerHeight, 0.1, 1000);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>camera.position.set(0, 0, 0.1);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));</p>
+<p class="p1"><span class="Apple-converted-space">            </span>renderer.setSize(window.innerWidth, window.innerHeight);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>renderer.setClearColor(0x000000, 1);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>panoramaContainer.appendChild(renderer.domElement);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const geometry = new THREE.SphereGeometry(500, 60, 40);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>geometry.scale(-1, 1, 1);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const material = new THREE.MeshBasicMaterial({ color: 0x666666, wireframe: true, transparent: true, opacity: 0.3 });</p>
+<p class="p1"><span class="Apple-converted-space">            </span>sphere = new THREE.Mesh(geometry, material);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>scene.add(sphere);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const pointLight1 = new THREE.PointLight(0x9d4edd, 0.8, 300); pointLight1.position.set(100, 100, 100); scene.add(pointLight1);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const pointLight2 = new THREE.PointLight(0x4ecdc4, 0.6, 300); pointLight2.position.set(-100, -100, -100); scene.add(pointLight2);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const ambientLight = new THREE.AmbientLight(0x333344, 0.3); scene.add(ambientLight);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>window.addEventListener('resize', onWindowResize);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// <span class="s1">加载媒体文件</span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function loadMediaFile(file) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (!file) return;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>stopCurrentMedia();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const mediaURL = URL.createObjectURL(file);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>currentMediaSrc = mediaURL;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (file.type.startsWith('video/')) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentMediaType = 'video';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>loadVideo(mediaURL);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} else if (file.type.startsWith('image/')) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>currentMediaType = 'image';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>loadImage(mediaURL);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>showStatus('<span class="s1">不支持的文件类型，请上传视频或图片</span>', 'error');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// ************ <span class="s1">加载视频文件核心逻辑</span> ************</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function loadVideo(src) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>loadingText.textContent = '<span class="s1">正在加载视频</span>...';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>loadingOverlay.classList.add('active');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (videoTexture) { videoTexture.dispose(); videoTexture = null; }</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (video) { video.pause(); video.src = ''; video.load(); video = null; }</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video = document.createElement('video');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>// <span class="s1">核心优化</span>1<span class="s1">：设置跨域属性，允许从</span>Blob URL<span class="s1">或网络源加载视频</span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.crossOrigin = 'anonymous';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.loop = true;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.muted = false;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.volume = currentVolume;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.playsInline = true;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.setAttribute('playsinline', '');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.preload = 'metadata';</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.addEventListener('loadedmetadata', function() {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>loadingText.textContent = '<span class="s1">正在准备视频纹理</span>...';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>// <span class="s1">核心优化</span>2<span class="s1">：监听</span>canplay<span class="s1">事件，确保视频纹理可被渲染</span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>video.addEventListener('canplay', function onCanPlay() {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>video.removeEventListener('canplay', onCanPlay);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>if (videoTexture) videoTexture.dispose();</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>// <span class="s1">视频纹理</span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>videoTexture = new THREE.VideoTexture(video);</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>videoTexture.minFilter = THREE.LinearFilter;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>videoTexture.magFilter = THREE.LinearFilter;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>videoTexture.format = THREE.RGBAFormat;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>// <span class="s1">应用到球体贴图</span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>sphere.material.map = videoTexture;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>sphere.material.color.set(0xffffff);</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>sphere.material.wireframe = false;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>sphere.material.transparent = false;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>sphere.material.opacity = 1;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>sphere.material.needsUpdate = true;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>// <span class="s1">启用播放控制</span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>playBtn.style.opacity = '1';</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>playBtn.style.pointerEvents = 'auto';</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>updateTimeDisplay(0, video.duration);</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>isPlaying = false;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>playBtn.innerHTML = '&lt;i class="fas fa-play"&gt;&lt;/i&gt; <span class="s1">播放</span>';</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>// <span class="s1">为防止自动播放被浏览器阻止，先暂停</span></p>
+<p class="p1"><span class="Apple-converted-space">                        </span>video.pause();</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>updateVolumeToggleButton();</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>loadingOverlay.classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>showStatus('<span class="s1">视频加载成功，可以播放了</span>', 'success');</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>} catch (textureError) {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>console.error('<span class="s1">视频纹理创建失败</span>:', textureError);</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>loadingOverlay.classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>showStatus('<span class="s1">视频纹理创建失败，视频编码可能不支持</span>', 'error');</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}, { once: true });</p>
+<p class="p1"><span class="Apple-converted-space">                </span>// <span class="s1">尝试自动播放以解锁音频，但立即暂停</span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>const playPromise = video.play();</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (playPromise !== undefined) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>playPromise.then(() =&gt; { video.pause(); }).catch(e =&gt; { /* <span class="s1">忽略自动播放失败错误</span> */ });</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.addEventListener('timeupdate', function() {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (video.duration) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const progress = (video.currentTime / video.duration) * 100;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>progressFill.style.width = `${progress}%`;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>updateTimeDisplay(video.currentTime, video.duration);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.addEventListener('ended', function() { isPlaying = false; playBtn.innerHTML = '&lt;i class="fas fa-play"&gt;&lt;/i&gt; <span class="s1">播放</span>'; });</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.addEventListener('error', function(e) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>console.error('<span class="s1">视频加载错误</span>:', video.error);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>loadingOverlay.classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>let msg = '<span class="s1">视频加载失败。</span>';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (video.error &amp;&amp; video.error.code === 4) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>msg += ' <span class="s1">不支持此格式或编码。</span>';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>msg += ' <span class="s1">请确保是</span>H.264 MP4<span class="s1">编码的兼容视频。</span>';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>showStatus(msg, 'error');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>// <span class="s1">设置视频源</span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.src = src;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>video.load();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function loadImage(src) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>progressFill.style.width = '0%'; updateTimeDisplay(0, 0);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (imageTexture) imageTexture.dispose();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const textureLoader = new THREE.TextureLoader();</p>
+<p class="p1"><span class="Apple-converted-space">            </span>loadingText.textContent = '<span class="s1">正在加载图片</span>...';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>loadingOverlay.classList.add('active');</p>
+<p class="p1"><span class="Apple-converted-space">            </span>textureLoader.load( src,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>function(texture) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>imageTexture = texture;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>imageTexture.minFilter = THREE.LinearFilter;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>imageTexture.magFilter = THREE.LinearFilter;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>sphere.material.map = imageTexture;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>sphere.material.color.set(0xffffff);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>sphere.material.wireframe = false;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>sphere.material.transparent = false;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>sphere.material.opacity = 1;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>sphere.material.needsUpdate = true;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>loadingOverlay.classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>showStatus('<span class="s1">图片文件加载成功</span>', 'success');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>},</p>
+<p class="p1"><span class="Apple-converted-space">                </span>undefined,</p>
+<p class="p1"><span class="Apple-converted-space">                </span>function(error) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>console.error('<span class="s1">图片加载错误</span>:', error);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>loadingOverlay.classList.remove('active');</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>showStatus('<span class="s1">图片加载失败，请重试</span>', 'error');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function stopCurrentMedia() {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (video) { video.pause(); isPlaying = false; playBtn.innerHTML = '&lt;i class="fas fa-play"&gt;&lt;/i&gt; <span class="s1">播放</span>'; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function togglePlay() {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (video &amp;&amp; currentMediaType === 'video') {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>if (isPlaying) {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>video.pause();</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>playBtn.innerHTML = '&lt;i class="fas fa-play"&gt;&lt;/i&gt; <span class="s1">播放</span>';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>} else {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>video.play().then(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>playBtn.innerHTML = '&lt;i class="fas fa-pause"&gt;&lt;/i&gt; <span class="s1">暂停</span>';</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>showStatus('', 'success'); // <span class="s1">清空成功消息</span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>}).catch(e =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>console.log("<span class="s1">播放失败</span>:", e);</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>showStatus('<span class="s1">播放失败，请检查浏览器设置</span>', 'error');</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>isPlaying = !isPlaying;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function showStatus(text, type) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>statusMessage.textContent = text;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>statusMessage.className = 'status-message';</p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (text) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>statusMessage.classList.add('active');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>statusMessage.style.color = type === 'error' ? '#ff6b6b' : '#06d6a0';</p>
+<p class="p1"><span class="Apple-converted-space">                </span>setTimeout(() =&gt; { statusMessage.classList.remove('active'); }, 3000);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>// <span class="s1">其他功能函数</span> (initArcAnimations, enterPlayer, exitPlayer, setupEventListeners, <span class="s1">以及陀螺仪、全屏、鼠标控制等相关函数</span>)</p>
+<p class="p3"><span class="s2"><span class="Apple-converted-space">        </span>// </span>以下为原始文件中已存在的功能函数，为保持完整性保留，但已修正内部的中文注释和字符串</p>
+<p class="p3"><span class="s2"><span class="Apple-converted-space">        </span>// </span>注意：为节省空间，这里不重复修正所有注释，但关键用户界面字符串已在上述代码中修正。</p>
+<p class="p3"><span class="s2"><span class="Apple-converted-space">        </span>// </span>核心改动：将所有用户可见的中文乱码文本替换为正确中文，内部注释和逻辑保持不变。</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function initArcAnimations() { document.querySelectorAll('.arc').forEach(arc =&gt; { arc.style.animationDelay = `${Math.random() * -10}s`; arc.style.animationDuration = `${20 + Math.random() * 20}s`; if (Math.random() &gt; 0.5) arc.style.animationDirection = 'reverse'; }); document.querySelectorAll('.dot').forEach(dot =&gt; { dot.style.animationDelay = `${Math.random() * 5}s`; }); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function enterPlayer() { homePage.classList.add('fade-out'); setTimeout(() =&gt; { homePage.style.display = 'none'; playerPage.classList.add('active'); animatePanorama(); }, 1000); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function exitPlayer() { stopCurrentMedia(); currentMediaType = null; if (videoTexture) { sphere.material.map = null; sphere.material.color.set(0x666666); sphere.material.wireframe = true; sphere.material.transparent = true; sphere.material.opacity = 0.3; sphere.material.needsUpdate = true; videoTexture.dispose(); videoTexture = null; } if (imageTexture) { sphere.material.map = null; sphere.material.color.set(0x666666); sphere.material.wireframe = true; sphere.material.transparent = true; sphere.material.opacity = 0.3; sphere.material.needsUpdate = true; imageTexture.dispose(); imageTexture = null; } playBtn.style.opacity = '0.5'; playBtn.style.pointerEvents = 'none'; progressFill.style.width = '0%'; updateTimeDisplay(0, 0); playerPage.classList.remove('active'); setTimeout(() =&gt; { homePage.style.display = 'flex'; homePage.classList.remove('fade-out'); }, 500); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function setupEventListeners() { panoramaContainer.style.touchAction = 'none'; panoramaContainer.addEventListener('pointerdown', onPointerDown); document.addEventListener('pointermove', onPointerMove); document.addEventListener('pointerup', onPointerUp); panoramaContainer.addEventListener('wheel', onDocumentMouseWheel, { passive: false }); panoramaContainer.addEventListener('touchstart', onTouchStart, { passive: false }); panoramaContainer.addEventListener('touchmove', onTouchMove, { passive: false }); panoramaContainer.addEventListener('touchend', onTouchEnd); document.addEventListener('keydown', (e) =&gt; { if (e.key === 'Escape' &amp;&amp; playerPage.classList.contains('active')) exitPlayer(); if (e.key === ' ' &amp;&amp; playerPage.classList.contains('active') &amp;&amp; currentMediaType === 'video') { e.preventDefault(); if (playBtn &amp;&amp; !playBtn.disabled) playBtn.click(); } if (e.key === 'f' || e.key === 'F') toggleFullscreen(); if (e.key === '+' || e.key === '=') { e.preventDefault(); zoomIn(); } if (e.key === '-' || e.key === '_') { e.preventDefault(); zoomOut(); } if (e.key === '0') { e.preventDefault(); resetZoom(); } if (e.key === 'ArrowUp' &amp;&amp; video &amp;&amp; currentMediaType === 'video') { e.preventDefault(); setVolume(Math.min(1, currentVolume + 0.1)); } if (e.key === 'ArrowDown' &amp;&amp; video &amp;&amp; currentMediaType === 'video') { e.preventDefault(); setVolume(Math.max(0, currentVolume - 0.1)); } if (e.key === 'm' || e.key === 'M') { e.preventDefault(); if (video &amp;&amp; currentMediaType === 'video') volumeToggleBtn.click(); } }); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onPointerDown(e) { if (e.isPrimary === false || e.button !== 0) return; isUserInteracting = true; onPointerDownPointerX = e.clientX; onPointerDownPointerY = e.clientY; onPointerDownLon = lon; onPointerDownLat = lat; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onPointerMove(e) { if (e.isPrimary === false || !isUserInteracting || isGyroEnabled) return; const dx = e.clientX - onPointerDownPointerX; const dy = e.clientY - onPointerDownPointerY; const sensitivity = 0.1; const fovSensetivity = camera.fov / 60; lon = (onPointerDownLon - dx * sensitivity * fovSensetivity); lat = (onPointerDownLat + dy * sensitivity * fovSensetivity); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onPointerUp() { isUserInteracting = false; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onDocumentMouseWheel(e) { e.preventDefault(); e.deltaY &lt; 0 ? zoomIn() : zoomOut(); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onTouchStart(e) { if (e.touches.length === 2) { isPinchZooming = true; isUserInteracting = false; const dx = e.touches[0].pageX - e.touches[1].pageX; const dy = e.touches[0].pageY - e.touches[1].pageY; pinchZoomDistance = Math.sqrt(dx * dx + dy * dy); initialFov = camera.fov; } else if (e.touches.length === 1) { isUserInteracting = true; onPointerDownPointerX = e.touches[0].clientX; onPointerDownPointerY = e.touches[0].clientY; onPointerDownLon = lon; onPointerDownLat = lat; } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onTouchMove(e) { if (e.touches.length === 2 &amp;&amp; isPinchZooming) { e.preventDefault(); const dx = e.touches[0].pageX - e.touches[1].pageX; const dy = e.touches[0].pageY - e.touches[1].pageY; const currentDistance = Math.sqrt(dx * dx + dy * dy); if (pinchZoomDistance &gt; 0) { const scale = pinchZoomDistance / currentDistance; let newFov = initialFov * scale; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); } } else if (e.touches.length === 1 &amp;&amp; isUserInteracting &amp;&amp; !isGyroEnabled) { const dx = e.touches[0].clientX - onPointerDownPointerX; const dy = e.touches[0].clientY - onPointerDownPointerY; const sensitivity = 0.25; const fovSensetivity = camera.fov / 60; lon = (onPointerDownLon - dx * sensitivity * fovSensetivity); lat = (onPointerDownLat + dy * sensitivity * fovSensetivity); } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onTouchEnd(e) { if (e.touches.length &lt; 2) isPinchZooming = false; if (e.touches.length === 0) isUserInteracting = false; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function zoomIn() { let newFov = camera.fov - 5; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function zoomOut() { let newFov = camera.fov + 5; newFov = THREE.MathUtils.clamp(newFov, minFov, maxFov); camera.fov = newFov; camera.updateProjectionMatrix(); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function resetZoom() { camera.fov = initialFov; camera.updateProjectionMatrix(); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function updateCamera() { if (isGyroEnabled) return; lat = Math.max(-85, Math.min(85, lat)); phi = THREE.MathUtils.degToRad(90 - lat); theta = THREE.MathUtils.degToRad(lon); const x = 500 * Math.sin(phi) * Math.cos(theta); const y = 500 * Math.cos(phi); const z = 500 * Math.sin(phi) * Math.sin(theta); camera.lookAt(x, y, z); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function toggleGyro() { if (!isGyroEnabled) { if (typeof DeviceOrientationEvent !== 'undefined' &amp;&amp; typeof DeviceOrientationEvent.requestPermission === 'function') { DeviceOrientationEvent.requestPermission().then(response =&gt; { if (response === 'granted') enableGyro(); else alert('<span class="s1">设备方向权限被拒绝，无法启用陀螺仪</span>'); }).catch(error =&gt; console.error('<span class="s1">请求陀螺仪权限</span>:', error)); } else { enableGyro(); } } else { disableGyro(); } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function enableGyro() { isGyroEnabled = true; gyroBtn.textContent = '<span class="s1">陀螺仪</span> <span class="s1">开</span>'; gyroBtn.style.background = 'rgba(157, 78, 221, 0.2)'; gyroBtn.style.borderColor = '#9d4edd'; window.addEventListener('deviceorientation', onDeviceOrientation); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function disableGyro() { isGyroEnabled = false; gyroBtn.textContent = '<span class="s1">陀螺仪</span> <span class="s1">关</span>'; gyroBtn.style.background = ''; gyroBtn.style.borderColor = ''; window.removeEventListener('deviceorientation', onDeviceOrientation); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onDeviceOrientation(e) { if (!isGyroEnabled) return; const alpha = e.alpha ? THREE.MathUtils.degToRad(e.alpha) : 0; const beta = e.beta ? THREE.MathUtils.degToRad(e.beta) : 0; const gamma = e.gamma ? THREE.MathUtils.degToRad(e.gamma) : 0; camera.rotation.x = -beta; camera.rotation.y = -alpha; camera.rotation.z = gamma; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function toggleFullscreen() { if (!document.fullscreenElement) { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); else if (document.documentElement.mozRequestFullScreen) document.documentElement.mozRequestFullScreen(); else if (document.documentElement.webkitRequestFullscreen) document.documentElement.webkitRequestFullscreen(); else if (document.documentElement.msRequestFullscreen) document.documentElement.msRequestfullscreen(); } else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.mozCancelFullScreen) document.mozCancelFullScreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); else if (document.msExitFullscreen) document.msExitFullscreen(); } }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function updateTimeDisplay(current, duration) { const formatTime = (s) =&gt; { const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return `${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`; }; timeDisplay.textContent = duration &gt; 0 ? `${formatTime(current)} / ${formatTime(duration)}` : '00:00 / 00:00'; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function animatePanorama() { requestAnimationFrame(animatePanorama); if (!isGyroEnabled) updateCamera(); if (!currentMediaType &amp;&amp; !isGyroEnabled &amp;&amp; !isUserInteracting) { lon += autoRotationSpeed; lat = Math.max(-85, Math.min(85, lat)); phi = THREE.MathUtils.degToRad(90 - lat); theta = THREE.MathUtils.degToRad(lon); const x = 500 * Math.sin(phi) * Math.cos(theta); const y = 500 * Math.cos(phi); const z = 500 * Math.sin(phi) * Math.sin(theta); camera.lookAt(x, y, z); } if (video &amp;&amp; currentMediaType === 'video' &amp;&amp; videoTexture) { videoTexture.needsUpdate = true; } renderer.render(scene, camera); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>document.addEventListener('fullscreenchange', () =&gt; { fullscreenBtn.textContent = document.fullscreenElement ? '<span class="s1">退出全屏</span>' : '<span class="s1">全屏</span>'; });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
 </body>
 </html>
