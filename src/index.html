@@ -1,11 +1,1128 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>PakePlus</title>
-    </head>
-    <body>
-        Hello World
-    </body>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RVR PLAYER</title>
+    <meta name="renderer" content="webkit">
+    <meta name="force-rendering" content="webkit">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #000;
+            --text: #f5f5f7;
+            --subtext: #86868b;
+            --accent: #0071e3;
+            --glass: rgba(255,255,255,0.08);
+            --border: rgba(255,255,255,0.1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #scene-container {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+        }
+
+        .a-enter-vr-button { display: none !important; }
+
+        /* Upload */
+        #upload-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 500;
+            transition: opacity 0.4s;
+        }
+
+        #upload-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .upload-title {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .upload-subtitle {
+            font-size: 15px;
+            color: var(--subtext);
+            margin-bottom: 32px;
+        }
+
+        .upload-zone {
+            width: 320px;
+            height: 200px;
+            border: 2px dashed rgba(255,255,255,0.25);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+            background: rgba(255,255,255,0.03);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(0,113,227,0.1) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent);
+            transform: scale(1.02);
+        }
+
+        .upload-zone:hover::before {
+            opacity: 1;
+        }
+
+        .upload-zone:hover svg {
+            transform: translateY(-4px);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(0,113,227,0.12);
+            transform: scale(1.04);
+            border-style: solid;
+        }
+
+        .upload-zone svg {
+            width: 48px;
+            height: 48px;
+            color: var(--subtext);
+            transition: all 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        .upload-zone:hover svg { color: var(--accent); }
+
+        body.in-app .upload-zone small { font-size: 12px; }
+
+        .upload-zone span {
+            font-size: 17px;
+            font-weight: 500;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+
+        .upload-zone small {
+            font-size: 13px;
+            color: var(--subtext);
+        }
+
+        #file-input { display: none; }
+
+        /* Hint */
+        #hint {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #hint.visible { opacity: 1; }
+
+        .hint-icon {
+            width: 48px;
+            height: 48px;
+            color: var(--text);
+            margin-bottom: 16px;
+            animation: drag-hint 2s ease-in-out infinite;
+            opacity: 0.6;
+        }
+
+        @keyframes drag-hint {
+            0%, 100% { transform: translateX(-20px); opacity: 0.6; }
+            50% { transform: translateX(20px); opacity: 0.3; }
+        }
+
+        .hint-text {
+            font-size: 14px;
+            color: var(--subtext);
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        /* Controls */
+        #controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 16px 14px;
+            z-index: 100;
+            transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.4s;
+        }
+
+        /* Fullscreen: hide controls by default */
+        body.is-fullscreen #controls {
+            transform: translateY(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Fullscreen: show controls on hover near bottom */
+        body.is-fullscreen.controls-active #controls {
+            transform: translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Fullscreen: touch device - always show controls briefly */
+        body.is-fullscreen.controls-active.touch-device #controls {
+            transition: opacity 0.3s;
+        }
+
+        body.is-fullscreen.touch-device #controls {
+            transform: translateY(0);
+            opacity: 0.6;
+        }
+
+        /* Bottom hover zone for fullscreen */
+        #controls-hover-zone {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            z-index: 99;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        body.is-fullscreen #controls-hover-zone {
+            opacity: 1;
+        }
+
+        .controls-glass {
+            background: var(--glass);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--text);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1), box-shadow 0.2s;
+            flex-shrink: 0;
+        }
+
+        .btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn.ripple {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn.ripple::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 60%);
+            transform: scale(0);
+            opacity: 0;
+        }
+
+        .btn.ripple:active::after {
+            animation: ripple 0.4s ease-out;
+        }
+
+        @keyframes ripple {
+            to { transform: scale(2); opacity: 1; }
+        }
+
+        .btn svg {
+            width: 14px;
+            height: 14px;
+            color: var(--bg);
+        }
+
+        .btn-icon {
+            background: transparent;
+            border: 1px solid var(--border);
+        }
+
+        .btn-icon svg { color: var(--text); }
+
+        .btn-icon:hover {
+            background: rgba(255,255,255,0.12);
+        }
+
+        .btn-upload {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+        }
+
+        .btn-upload svg { color: var(--text); }
+
+        .btn-upload:hover {
+            background: rgba(255,255,255,0.18);
+        }
+
+        .btn-upload.active {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .progress {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .time {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--subtext);
+            min-width: 36px;
+            font-variant-numeric: tabular-nums;
+            flex-shrink: 0;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 3px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 1.5px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: var(--text);
+            border-radius: 1.5px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .progress-handle {
+            position: absolute;
+            right: -4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            background: var(--text);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .progress-bar:hover .progress-handle { opacity: 1; }
+
+        /* Loading */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 600;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        #loading.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--subtext);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #loading-text {
+            margin-top: 16px;
+            font-size: 14px;
+            color: var(--subtext);
+        }
+
+        .loading-progress {
+            width: 200px;
+            height: 3px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .loading-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        @media (max-width: 768px) {
+            .upload-zone { width: 280px; height: 180px; }
+            .upload-title { font-size: 24px; }
+        }
+
+        /* APP 状态提示 */
+        .app-status {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--subtext);
+            z-index: 200;
+            opacity: 0;
+            transition: opacity 0.3s;
+            display: none;
+        }
+
+        body.in-app .app-status { display: block; }
+        .app-status.visible { opacity: 1; }
+
+        /* iOS 安全区域适配 */
+        body.ios {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        /* Android 状态栏适配 */
+        body.android #controls {
+            padding-bottom: max(14px, env(safe-area-inset-bottom));
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <p id="loading-text">加载中...</p>
+        <div class="loading-progress" id="loading-progress" style="display:none">
+            <div class="loading-progress-fill" id="loading-progress-fill"></div>
+        </div>
+    </div>
+
+    <!-- Upload -->
+    <div id="upload-overlay">
+        <h1 class="upload-title">RVR</h1>
+        <p class="upload-subtitle">上海雅虹文化传播有限公司</p>
+        <div class="upload-zone" id="upload-zone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span id="upload-text">上传全景媒体</span>
+            <small id="upload-hint">支持 JPG、PNG、WebP、MP4、WebM</small>
+        </div>
+        <input type="file" id="file-input" accept="image/*,video/*">
+        <!-- APP 端提示 -->
+        <p class="upload-note" id="app-upload-note" style="display:none; margin-top: 16px; font-size: 12px; color: var(--subtext);">点击选择文件或从相册选取</p>
+    </div>
+
+    <!-- APP 状态 -->
+    <div class="app-status" id="app-status"></div>
+
+    <!-- Scene -->
+    <div id="scene-container">
+        <a-scene
+            vr-mode-ui="enabled: false"
+            loading-screen="enabled: false"
+            renderer="antialias: false; colorManagement: true; powerPreference: high-performance; failIfMajorPerformanceCaveat: false"
+            embedded
+            device-orientation-permission-ui="enabled: false">
+
+            <a-assets>
+                <video id="video-asset" crossorigin="anonymous" playsinline webkit-playsinline></video>
+            </a-assets>
+
+            <a-sky id="sky" visible="true" rotation="0 -90 0"></a-sky>
+
+            <a-videosphere id="video-sphere" visible="false" rotation="0 -90 0" src="#video-asset"></a-videosphere>
+
+            <a-entity id="camera" camera look-controls="touchEnabled: true; magicWindowTrackingEnabled: true; reverseMouseDrag: false" wasd-controls="enabled: false" fov="80"></a-entity>
+        </a-scene>
+    </div>
+
+    <!-- Hint -->
+    <div id="hint">
+        <svg class="hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+        </svg>
+        <p class="hint-text">拖拽或滑动来探索全景</p>
+    </div>
+
+    <!-- Controls Hover Zone -->
+    <div id="controls-hover-zone"></div>
+
+    <!-- Controls -->
+    <div id="controls">
+        <div class="controls-glass">
+            <button class="btn btn-upload ripple" id="btn-upload" title="上传文件">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+            </button>
+
+            <button class="btn ripple" id="btn-play" style="display:none">
+                <svg id="icon-play" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <svg id="icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                    <rect x="6" y="4" width="4" height="16"/>
+                    <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+            </button>
+
+            <button class="btn btn-icon ripple" id="btn-mute" title="静音/取消静音" style="display:none">
+                <svg id="icon-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+                <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                    <line x1="23" y1="9" x2="17" y2="15"/>
+                    <line x1="17" y1="9" x2="23" y2="15"/>
+                </svg>
+            </button>
+
+            <div class="progress" id="video-progress" style="display:none">
+                <span class="time" id="time-current">0:00</span>
+                <div class="progress-bar" id="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                    <div class="progress-handle"></div>
+                </div>
+                <span class="time" id="time-total">0:00</span>
+            </div>
+
+            <button class="btn btn-icon ripple" id="btn-fullscreen" title="全屏">
+                <svg id="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 3 21 3 21 9"/>
+                    <polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+                <svg id="icon-collapse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                    <polyline points="4 14 10 14 10 20"/>
+                    <polyline points="20 10 14 10 14 4"/>
+                    <line x1="14" y1="10" x2="21" y2="3"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Cache DOM
+        const $ = id => document.getElementById(id);
+        const uploadOverlay = $('upload-overlay');
+        const uploadZone = $('upload-zone');
+        const fileInput = $('file-input');
+        const sky = $('sky');
+        const videoSphere = $('video-sphere');
+        const videoAsset = $('video-asset');
+        const hint = $('hint');
+        const loading = $('loading');
+        const loadingText = $('loading-text');
+        const loadingProgress = $('loading-progress');
+        const loadingProgressFill = $('loading-progress-fill');
+        const btnUpload = $('btn-upload');
+        const btnPlay = $('btn-play');
+        const btnMute = $('btn-mute');
+        const btnFullscreen = $('btn-fullscreen');
+        const iconPlay = $('icon-play');
+        const iconPause = $('icon-pause');
+        const iconVolume = $('icon-volume');
+        const iconMuted = $('icon-muted');
+        const iconExpand = $('icon-expand');
+        const iconCollapse = $('icon-collapse');
+        const videoProgress = $('video-progress');
+        const progressBar = $('progress-bar');
+        const progressFill = $('progress-fill');
+        const timeCurrent = $('time-current');
+        const timeTotal = $('time-total');
+
+        // State
+        let videoEl = null;
+        let isPlaying = false;
+        let isMuted = false;
+        let isDragging = false;
+        let videoUrl = null;
+        let isControlsVisible = false;
+        let controlsTimeout = null;
+        let progressInterval = null;
+        let isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        let isAndroid = /Android/.test(navigator.userAgent);
+        let isAPP = window.RVRAPP !== undefined;  // 原生 APP 暴露的接口
+
+        if (isTouchDevice) document.body.classList.add('touch-device');
+        if (isIOS) document.body.classList.add('ios');
+        if (isAndroid) document.body.classList.add('android');
+        if (isAPP) {
+            document.body.classList.add('in-app');
+            // APP 端更新提示文本
+            const uploadText = $('upload-text');
+            const uploadHint = $('upload-hint');
+            const appNote = $('app-upload-note');
+            if (uploadText) uploadText.textContent = '选择全景媒体';
+            if (uploadHint) uploadHint.textContent = 'JPG、PNG、MP4 格式';
+            if (appNote) appNote.style.display = 'block';
+        }
+
+        // iOS 特殊处理：请求陀螺仪权限
+        function requestDeviceOrientation() {
+            if (isIOS && typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permission => {
+                        if (permission === 'granted') {
+                            console.log('陀螺仪权限已授权');
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('陀螺仪权限请求失败:', err);
+                    });
+            }
+        }
+
+        // 首次用户交互后请求陀螺仪权限（iOS 13+）
+        document.addEventListener('click', requestDeviceOrientation, { once: true });
+        document.addEventListener('touchstart', requestDeviceOrientation, { once: true });
+
+        // Show loading
+        function showLoading(text = '加载中...', showProgress = false) {
+            loadingText.textContent = text;
+            loadingProgress.style.display = showProgress ? 'block' : 'none';
+            loading.classList.add('visible');
+        }
+
+        function updateLoadingProgress(pct) {
+            if (loadingProgressFill) {
+                loadingProgressFill.style.width = pct + '%';
+            }
+        }
+
+        function hideLoading() {
+            loading.classList.remove('visible');
+            updateLoadingProgress(0);
+        }
+
+        // Show hint
+        function showHint() {
+            hint.classList.add('visible');
+            setTimeout(() => hint.classList.remove('visible'), 3000);
+        }
+
+        // Format time
+        function formatTime(s) {
+            const m = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${m}:${sec.toString().padStart(2, '0')}`;
+        }
+
+        // Load image
+        function loadImage(file) {
+            showLoading('加载图片...', true);
+            updateLoadingProgress(30);
+            const reader = new FileReader();
+            reader.onload = e => {
+                updateLoadingProgress(80);
+                sky.setAttribute('src', e.target.result);
+                sky.setAttribute('visible', true);
+                videoSphere.setAttribute('visible', false);
+                cleanupVideo();
+                uploadOverlay.classList.add('hidden');
+                btnPlay.style.display = 'none';
+                btnMute.style.display = 'none';
+                videoProgress.style.display = 'none';
+                updateLoadingProgress(100);
+                setTimeout(() => {
+                    hideLoading();
+                    showHint();
+                }, 100);
+            };
+            reader.onerror = () => {
+                hideLoading();
+                alert('图片加载失败');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Load video
+        function loadVideo(file) {
+            showLoading('加载视频...', true);
+            updateLoadingProgress(10);
+            cleanupVideo();
+
+            videoEl = videoAsset;
+            videoEl.crossOrigin = 'anonymous';
+            videoEl.playsInline = true;
+            videoEl.loop = true;
+            // iOS 特殊属性
+            if (isIOS) {
+                videoEl.setAttribute('webkit-playsinline', '');
+                videoEl.setAttribute('playsinline', '');
+            }
+
+            videoUrl = URL.createObjectURL(file);
+            videoEl.src = videoUrl;
+
+            videoEl.onloadstart = () => updateLoadingProgress(20);
+
+            videoEl.onloadedmetadata = () => {
+                updateLoadingProgress(40);
+                // 修复：在元数据加载时获取时长
+                if (videoEl.duration && !isNaN(videoEl.duration)) {
+                    timeTotal.textContent = formatTime(videoEl.duration);
+                }
+            };
+
+            videoEl.onloadeddata = () => updateLoadingProgress(70);
+            videoEl.oncanplaythrough = () => updateLoadingProgress(90);
+
+            videoEl.oncanplay = () => {
+                videoSphere.setAttribute('visible', true);
+                sky.setAttribute('visible', false);
+
+                uploadOverlay.classList.add('hidden');
+                btnPlay.style.display = 'flex';
+                btnMute.style.display = 'flex';
+                videoProgress.style.display = 'flex';
+
+                // 启动进度更新
+                startProgressUpdate();
+
+                // 自动播放策略：移动端/APP 端先尝试静音播放
+                const attemptPlay = () => {
+                    videoEl.muted = true;
+                    isMuted = true;
+                    iconVolume.style.display = 'none';
+                    iconMuted.style.display = 'block';
+                    
+                    videoEl.play().then(() => {
+                        isPlaying = true;
+                        iconPlay.style.display = 'none';
+                        iconPause.style.display = 'block';
+                        // 非 iOS 设备取消静音
+                        if (!isIOS) {
+                            videoEl.muted = false;
+                            isMuted = false;
+                            iconVolume.style.display = 'block';
+                            iconMuted.style.display = 'none';
+                        }
+                        // iOS 保持静音，用户需手动取消
+                    }).catch(() => {
+                        // 完全被阻止，等待用户点击播放
+                    });
+                };
+
+                attemptPlay();
+
+                updateLoadingProgress(100);
+                setTimeout(() => {
+                    hideLoading();
+                    showHint();
+                }, 200);
+            };
+
+            videoEl.onerror = () => {
+                hideLoading();
+                cleanupVideo();
+                // APP 端给出更友好的提示
+                const msg = isAPP 
+                    ? '视频加载失败，请尝试使用 MP4 格式' 
+                    : '视频加载失败，请确保是360°全景视频格式';
+                alert(msg);
+            };
+
+            videoEl.load();
+        }
+
+        // Cleanup video
+        function cleanupVideo() {
+            // 清理进度更新定时器
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            if (videoEl) {
+                videoEl.pause();
+                videoEl.src = '';
+                videoEl = null;
+            }
+            if (videoUrl) {
+                URL.revokeObjectURL(videoUrl);
+                videoUrl = null;
+            }
+            isPlaying = false;
+            isMuted = false;
+            isDragging = false;
+            // 重置进度显示
+            progressFill.style.width = '0%';
+            timeCurrent.textContent = '0:00';
+            timeTotal.textContent = '0:00';
+        }
+
+        // Toggle mute
+        function toggleMute() {
+            if (!videoEl) return;
+            isMuted = !isMuted;
+            videoEl.muted = isMuted;
+            iconVolume.style.display = isMuted ? 'none' : 'block';
+            iconMuted.style.display = isMuted ? 'block' : 'none';
+        }
+
+        // Load file
+        function loadFile(file) {
+            // 修复：处理空 MIME 类型
+            const fileType = file.type || '';
+            const fileName = file.name || '';
+            const ext = fileName.split('.').pop().toLowerCase();
+            
+            const isImage = fileType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
+            const isVideo = fileType.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(fileName);
+            
+            if (isImage) {
+                loadImage(file);
+            } else if (isVideo) {
+                // 检测视频格式，APP 端优先推荐 MP4
+                if (!isAPP && (isAndroid || isIOS) && ext === 'webm') {
+                    showFormatTip('webm');
+                }
+                loadVideo(file);
+            } else {
+                alert('不支持的文件格式，请上传 JPG、PNG、WebP、MP4 或 WebM 文件');
+            }
+        }
+
+        // 视频格式提示
+        function showFormatTip(format) {
+            if (format === 'webm') {
+                showLoading('正在加载 WebM 格式...', true);
+                setTimeout(() => {
+                    alert('提示：移动设备建议使用 MP4 格式以获得更好的兼容性');
+                }, 500);
+            }
+        }
+
+        // Play/Pause
+        function togglePlay() {
+            if (!videoEl) return;
+            if (videoEl.paused) {
+                videoEl.play();
+                iconPlay.style.display = 'none';
+                iconPause.style.display = 'block';
+                isPlaying = true;
+            } else {
+                videoEl.pause();
+                iconPlay.style.display = 'block';
+                iconPause.style.display = 'none';
+                isPlaying = false;
+            }
+        }
+
+        // Progress
+        function updateProgress() {
+            if (!videoEl || !videoEl.duration) return;
+            const pct = (videoEl.currentTime / videoEl.duration) * 100;
+            progressFill.style.width = pct + '%';
+            timeCurrent.textContent = formatTime(videoEl.currentTime);
+        }
+
+        // Seek
+        function seek(e) {
+            if (!videoEl || !videoEl.duration) return;
+            const rect = progressBar.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100));
+            const seekTime = (pct / 100) * videoEl.duration;
+            videoEl.currentTime = seekTime;
+            // 拖拽时实时更新进度条和时间显示
+            progressFill.style.width = pct + '%';
+            timeCurrent.textContent = formatTime(seekTime);
+        }
+
+        // Sync fullscreen icon
+        function syncFullscreenIcon() {
+            if (document.fullscreenElement) {
+                iconExpand.style.display = 'none';
+                iconCollapse.style.display = 'block';
+                document.body.classList.add('is-fullscreen');
+                // 触摸设备全屏时自动显示控制栏
+                if (isTouchDevice) {
+                    document.body.classList.add('controls-active');
+                }
+            } else {
+                iconExpand.style.display = 'block';
+                iconCollapse.style.display = 'none';
+                document.body.classList.remove('is-fullscreen', 'controls-active');
+            }
+        }
+
+        // Fullscreen
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Show controls in fullscreen
+        function showControlsInFullscreen() {
+            if (!document.fullscreenElement) return;
+            document.body.classList.add('controls-active');
+            clearTimeout(controlsTimeout);
+            controlsTimeout = setTimeout(() => {
+                if (document.fullscreenElement) {
+                    document.body.classList.remove('controls-active');
+                }
+            }, 3000);
+        }
+
+        // Events
+        uploadZone.onclick = openFilePicker;
+        btnUpload.onclick = openFilePicker;
+
+        // 原生文件选择器支持（APP 集成）
+        function openFilePicker() {
+            // 如果是原生 APP，调用原生接口
+            if (isAPP && window.RVRAPP && window.RVRAPP.pickFile) {
+                window.RVRAPP.pickFile({
+                    types: ['image/*', 'video/*'],
+                    success: function(result) {
+                        // result: { path: string, type: string, name: string }
+                        if (result.path) {
+                            loadFromPath(result.path);
+                        }
+                    },
+                    error: function(err) {
+                        console.error('文件选择失败:', err);
+                    }
+                });
+            } else {
+                // 降级到 Web 文件选择器
+                fileInput.click();
+            }
+        }
+
+        // 从原生路径加载文件（APP 专用）
+        function loadFromPath(path) {
+            if (isAPP && window.RVRAPP && window.RVRAPP.readFile) {
+                showLoading('正在读取文件...', true);
+                window.RVRAPP.readFile({
+                    path: path,
+                    success: function(data) {
+                        // data: { blob: Blob, name: string, type: string }
+                        loadFile(new File([data.blob], data.name, { type: data.type }));
+                    },
+                    error: function(err) {
+                        hideLoading();
+                        alert('文件读取失败');
+                    }
+                });
+            }
+        }
+
+        fileInput.onchange = e => {
+            if (e.target.files[0]) loadFile(e.target.files[0]);
+        };
+
+        uploadZone.ondragover = e => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        };
+
+        uploadZone.ondragleave = () => {
+            uploadZone.classList.remove('dragover');
+        };
+
+        uploadZone.ondrop = e => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+        };
+
+        btnPlay.onclick = togglePlay;
+        btnMute.onclick = toggleMute;
+
+        progressBar.onmousedown = e => {
+            isDragging = true;
+            seek(e);
+        };
+
+        // 改进：使用具名函数以便正确清理
+        function handleMouseUp() {
+            isDragging = false;
+        }
+
+        function handleMouseMove(e) {
+            if (isDragging) {
+                e.preventDefault();
+                seek(e);
+            }
+            if (!document.fullscreenElement) return;
+            const threshold = window.innerHeight - 100;
+            if (e.clientY >= threshold) {
+                showControlsInFullscreen();
+            }
+        }
+
+        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('mousemove', handleMouseMove);
+
+        btnFullscreen.onclick = toggleFullscreen;
+
+        document.onfullscreenchange = syncFullscreenIcon;
+
+        document.onkeydown = e => {
+            // 修复：上传界面显示时不触发快捷键
+            if (!uploadOverlay.classList.contains('hidden')) return;
+            
+            if (e.code === 'Space' && videoEl) {
+                e.preventDefault();
+                togglePlay();
+            }
+            if (e.code === 'KeyF') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+            if (e.code === 'KeyM' && videoEl) {
+                e.preventDefault();
+                toggleMute();
+            }
+        };
+
+        // Touch device: tap to toggle controls in fullscreen
+        document.ontouchend = e => {
+            if (!document.fullscreenElement) return;
+            if (e.target.closest('#controls')) return;
+            // 触摸屏幕中间区域切换播放/暂停
+            const y = e.changedTouches[0].clientY;
+            const screenHeight = window.innerHeight;
+            if (y > 80 && y < screenHeight - 80) {
+                if (videoEl) togglePlay();
+            }
+            showControlsInFullscreen();
+        };
+
+        // 触摸进度条支持
+        progressBar.ontouchstart = e => {
+            isDragging = true;
+            seek(e.touches[0]);
+        };
+
+        progressBar.ontouchmove = e => {
+            if (isDragging) {
+                e.preventDefault();
+                seek(e.touches[0]);
+            }
+        };
+
+        progressBar.ontouchend = () => {
+            isDragging = false;
+        };
+
+        document.onmousedown = () => hint.classList.remove('visible');
+        document.ontouchstart = () => hint.classList.remove('visible');
+
+        // 启动进度更新定时器
+        function startProgressUpdate() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(updateProgress, 250);
+        }
+
+        // 页面可见性变化时暂停/恢复
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+            } else if (videoEl && !videoEl.paused) {
+                startProgressUpdate();
+            }
+        });
+    </script>
+</body>
 </html>
