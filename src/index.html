@@ -502,10 +502,10 @@
 
     <!-- Scene -->
     <div id="scene-container">
-        <a-scene
+            <a-scene
             vr-mode-ui="enabled: false"
             loading-screen="enabled: false"
-            renderer="antialias: false; colorManagement: true; powerPreference: high-performance; failIfMajorPerformanceCaveat: false"
+            renderer="antialias: false; colorManagement: false; powerPreference: high-performance; failIfMajorPerformanceCaveat: false; maxCanvasWidth: 1920; maxCanvasHeight: 1920"
             embedded
             device-orientation-permission-ui="enabled: false">
 
@@ -694,6 +694,44 @@
             setTimeout(() => hint.classList.remove('visible'), 3000);
         }
 
+        // 显示错误（不阻塞界面）
+        let errorToast = null;
+        function showError(msg) {
+            // 移除之前的 toast
+            if (errorToast) {
+                errorToast.remove();
+            }
+            
+            errorToast = document.createElement('div');
+            errorToast.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0,0,0,0.9);
+                color: #fff;
+                padding: 16px 24px;
+                border-radius: 12px;
+                font-size: 14px;
+                z-index: 9999;
+                text-align: center;
+                max-width: 80%;
+            `;
+            errorToast.innerHTML = `
+                <div style="margin-bottom: 8px; color: #ff6b6b;">⚠️</div>
+                <div>${msg}</div>
+            `;
+            document.body.appendChild(errorToast);
+            
+            setTimeout(() => {
+                if (errorToast) {
+                    errorToast.style.opacity = '0';
+                    errorToast.style.transition = 'opacity 0.3s';
+                    setTimeout(() => errorToast && errorToast.remove(), 300);
+                }
+            }, 3000);
+        }
+
         // Format time
         function formatTime(s) {
             const m = Math.floor(s / 60);
@@ -705,26 +743,33 @@
         function loadImage(file) {
             showLoading('加载图片...', true);
             updateLoadingProgress(30);
+            
+            // 先清理视频，防止 videosphere 报错
+            cleanupVideo();
+            // 先隐藏两个球体，避免闪烁
+            videoSphere.setAttribute('visible', false);
+            sky.setAttribute('visible', false);
+            
             const reader = new FileReader();
             reader.onload = e => {
                 updateLoadingProgress(80);
+                // 先设置图片源，再立即显示，避免白屏
                 sky.setAttribute('src', e.target.result);
-                sky.setAttribute('visible', true);
-                videoSphere.setAttribute('visible', false);
-                cleanupVideo();
                 uploadOverlay.classList.add('hidden');
                 btnPlay.style.display = 'none';
                 btnMute.style.display = 'none';
                 videoProgress.style.display = 'none';
                 updateLoadingProgress(100);
+                // 隐藏 loading 后再显示天空，确保无缝切换
                 setTimeout(() => {
+                    sky.setAttribute('visible', true);
                     hideLoading();
                     showHint();
-                }, 100);
+                }, 50);
             };
             reader.onerror = () => {
                 hideLoading();
-                alert('图片加载失败');
+                showError('图片加载失败');
             };
             reader.readAsDataURL(file);
         }
@@ -734,15 +779,44 @@
             showLoading('加载视频...', true);
             updateLoadingProgress(10);
             cleanupVideo();
+            
+            // 先隐藏两个球体，避免从图片切换时的闪烁
+            videoSphere.setAttribute('visible', false);
+            sky.setAttribute('visible', false);
 
             videoEl = videoAsset;
             videoEl.crossOrigin = 'anonymous';
             videoEl.playsInline = true;
-            videoEl.loop = true;
+            // 12K 高分辨率视频：禁用循环，避免循环边界卡顿
+            videoEl.loop = false;
+            // 预加载策略：只预加载元数据
+            videoEl.preload = 'metadata';
             // iOS 特殊属性
             if (isIOS) {
                 videoEl.setAttribute('webkit-playsinline', '');
                 videoEl.setAttribute('playsinline', '');
+            }
+
+            // 手动循环逻辑：检测视频是否播放到末尾
+            let lastTime = 0;
+            let loopCheckInterval = null;
+            
+            function checkForLoop() {
+                if (!videoEl || videoEl.paused) return;
+                
+                const currentTime = videoEl.currentTime;
+                const duration = videoEl.duration;
+                
+                // 如果当前时间小于上次时间，说明跳帧了（网络卡顿或解码慢）
+                // 如果当前时间接近末尾，自动跳回开头
+                if (currentTime < 0.1 && lastTime > duration - 1) {
+                    // 正常循环
+                } else if (lastTime > 0.1 && currentTime < lastTime - 1) {
+                    // 跳帧了，重置到开头
+                    videoEl.currentTime = 0;
+                }
+                
+                lastTime = currentTime;
             }
 
             videoUrl = URL.createObjectURL(file);
@@ -752,18 +826,23 @@
 
             videoEl.onloadedmetadata = () => {
                 updateLoadingProgress(40);
-                // 修复：在元数据加载时获取时长
+                // 在元数据加载时获取时长
                 if (videoEl.duration && !isNaN(videoEl.duration)) {
                     timeTotal.textContent = formatTime(videoEl.duration);
                 }
             };
 
-            videoEl.onloadeddata = () => updateLoadingProgress(70);
+            videoEl.onloadeddata = () => {
+                updateLoadingProgress(70);
+                // 数据加载完成后，切换到自动循环模式
+                videoEl.preload = 'auto';
+            };
+
             videoEl.oncanplaythrough = () => updateLoadingProgress(90);
 
             videoEl.oncanplay = () => {
+                // 先显示视频球，再隐藏天空，确保无缝切换
                 videoSphere.setAttribute('visible', true);
-                sky.setAttribute('visible', false);
 
                 uploadOverlay.classList.add('hidden');
                 btnPlay.style.display = 'flex';
@@ -772,6 +851,9 @@
 
                 // 启动进度更新
                 startProgressUpdate();
+                
+                // 启动循环检测
+                loopCheckInterval = setInterval(checkForLoop, 500);
 
                 // 自动播放策略：移动端/APP 端先尝试静音播放
                 const attemptPlay = () => {
@@ -801,22 +883,35 @@
 
                 updateLoadingProgress(100);
                 setTimeout(() => {
+                    sky.setAttribute('visible', false);
                     hideLoading();
                     showHint();
-                }, 200);
+                }, 100);
             };
 
             videoEl.onerror = () => {
                 hideLoading();
                 cleanupVideo();
-                // APP 端给出更友好的提示
-                const msg = isAPP 
-                    ? '视频加载失败，请尝试使用 MP4 格式' 
-                    : '视频加载失败，请确保是360°全景视频格式';
-                alert(msg);
+                // 静默处理，不显示错误提示
+            };
+
+            videoEl.onended = () => {
+                // 视频自然播放结束，重置到开头
+                if (videoEl) {
+                    videoEl.currentTime = 0;
+                    videoEl.play().catch(() => {});
+                }
             };
 
             videoEl.load();
+            
+            // 保存循环检测 interval 引用，用于清理
+            videoEl._loopCheckInterval = () => {
+                if (loopCheckInterval) {
+                    clearInterval(loopCheckInterval);
+                    loopCheckInterval = null;
+                }
+            };
         }
 
         // Cleanup video
@@ -827,8 +922,17 @@
                 progressInterval = null;
             }
             if (videoEl) {
+                // 清理循环检测定时器
+                if (videoEl._loopCheckInterval) {
+                    videoEl._loopCheckInterval();
+                }
                 videoEl.pause();
+                videoEl.onended = null;
+                videoEl.onerror = null;
+                videoEl.oncanplay = null;
+                videoEl.onloadedmetadata = null;
                 videoEl.src = '';
+                videoEl.load();
                 videoEl = null;
             }
             if (videoUrl) {
@@ -842,6 +946,11 @@
             progressFill.style.width = '0%';
             timeCurrent.textContent = '0:00';
             timeTotal.textContent = '0:00';
+            // 重置按钮状态
+            iconPlay.style.display = 'block';
+            iconPause.style.display = 'none';
+            iconVolume.style.display = 'block';
+            iconMuted.style.display = 'none';
         }
 
         // Toggle mute
@@ -855,13 +964,17 @@
 
         // Load file
         function loadFile(file) {
-            // 修复：处理空 MIME 类型
-            const fileType = file.type || '';
-            const fileName = file.name || '';
-            const ext = fileName.split('.').pop().toLowerCase();
+            // 处理空 MIME 类型和文件名
+            const fileType = (file.type || '').toLowerCase();
+            const fileName = (file.name || '').toLowerCase();
+            const ext = fileName.includes('.') ? fileName.split('.').pop() : '';
             
-            const isImage = fileType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fileName);
-            const isVideo = fileType.startsWith('video/') || /\.(mp4|webm|mov|ogg)$/i.test(fileName);
+            // 图片格式检测
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'ico'];
+            const videoExts = ['mp4', 'webm', 'mov', 'ogg', 'avi', 'mkv', 'wmv'];
+            
+            const isImage = fileType.startsWith('image/') || imageExts.includes(ext);
+            const isVideo = fileType.startsWith('video/') || videoExts.includes(ext);
             
             if (isImage) {
                 loadImage(file);
@@ -872,7 +985,7 @@
                 }
                 loadVideo(file);
             } else {
-                alert('不支持的文件格式，请上传 JPG、PNG、WebP、MP4 或 WebM 文件');
+                showError('不支持的文件格式，请上传 JPG、PNG、WebP、MP4 或 WebM 文件');
             }
         }
 
@@ -881,7 +994,7 @@
             if (format === 'webm') {
                 showLoading('正在加载 WebM 格式...', true);
                 setTimeout(() => {
-                    alert('提示：移动设备建议使用 MP4 格式以获得更好的兼容性');
+                    showError('提示：移动设备建议使用 MP4 格式以获得更好的兼容性');
                 }, 500);
             }
         }
@@ -998,7 +1111,7 @@
                     },
                     error: function(err) {
                         hideLoading();
-                        alert('文件读取失败');
+                        showError('文件读取失败');
                     }
                 });
             }
